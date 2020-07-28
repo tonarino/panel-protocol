@@ -1,5 +1,4 @@
-#![no_std]
-use arrayvec::ArrayVec;
+#![cfg_attr(not(feature = "std"), no_std)]
 
 #[derive(Debug, PartialEq)]
 pub enum Command {
@@ -29,8 +28,9 @@ impl Command {
         }
     }
 
-    pub fn as_arrayvec(&self) -> ArrayVec<[u8; 8]> {
-        let mut buf = ArrayVec::new();
+    #[cfg(feature = "arrayvec")]
+    pub fn as_arrayvec(&self) -> arrayvec::ArrayVec<[u8; 8]> {
+        let mut buf = arrayvec::ArrayVec::new();
         match *self {
             Command::PowerCycler { slot, state } => {
                 buf.push(b'A');
@@ -44,6 +44,27 @@ impl Command {
             Command::Temperature { value } => {
                 buf.push(b'C');
                 buf.try_extend_from_slice(&value.to_be_bytes()).unwrap();
+            },
+        }
+        buf
+    }
+
+    #[cfg(feature = "std")]
+    pub fn as_vec(&self) -> std::vec::Vec<u8> {
+        let mut buf = std::vec::Vec::new();
+        match *self {
+            Command::PowerCycler { slot, state } => {
+                buf.push(b'A');
+                buf.push(slot);
+                buf.push(u8::from(state));
+            },
+            Command::Brightness { value } => {
+                buf.push(b'B');
+                buf.extend_from_slice(&value.to_be_bytes());
+            },
+            Command::Temperature { value } => {
+                buf.push(b'C');
+                buf.extend_from_slice(&value.to_be_bytes());
             },
         }
         buf
@@ -80,8 +101,9 @@ impl Report {
         }
     }
 
-    pub fn as_arrayvec(&self) -> ArrayVec<[u8; 8]> {
-        let mut buf = ArrayVec::new();
+    #[cfg(feature = "arrayvec")]
+    pub fn as_arrayvec(&self) -> arrayvec::ArrayVec<[u8; 8]> {
+        let mut buf = arrayvec::ArrayVec::new();
         match *self {
             Report::DialValue { diff } => {
                 buf.push(b'A');
