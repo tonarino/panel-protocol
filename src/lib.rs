@@ -50,8 +50,8 @@ impl Command {
     }
 
     #[cfg(feature = "std")]
-    pub fn as_vec(&self) -> std::vec::Vec<u8> {
-        let mut buf = std::vec::Vec::new();
+    pub fn as_vec(&self) -> Vec<u8> {
+        let mut buf = Vec::new();
         match *self {
             Command::PowerCycler { slot, state } => {
                 buf.push(b'A');
@@ -122,12 +122,95 @@ impl Report {
         }
         buf
     }
+
+    #[cfg(feature = "std")]
+    pub fn as_vec(&self) -> Vec<u8> {
+        let mut buf = Vec::new();
+        match *self {
+            Report::DialValue { diff } => {
+                buf.push(b'A');
+                buf.extend_from_slice(&diff.to_be_bytes());
+            },
+            Report::Click => {
+                buf.push(b'B');
+            },
+            Report::EmergencyOff => {
+                buf.push(b'C');
+            },
+            Report::Error { code } => {
+                buf.push(b'D');
+                buf.extend_from_slice(&code.to_be_bytes());
+            },
+        }
+        buf
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
+    #[cfg(feature = "std")]
+    fn command_roundtrips_vec() {
+        let commands = [
+            Command::PowerCycler { slot: 1, state: true },
+            Command::PowerCycler { slot: 20, state: false },
+            Command::Temperature { value: 100 },
+            Command::Brightness { value: 100 },
+        ];
+
+        for command in commands.iter() {
+            let (deserialized, _len) = Command::try_from(&command.as_vec()[..]).unwrap().unwrap();
+            assert_eq!(command, &deserialized);
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "arrayvec")]
+    fn command_roundtrips_arrayvec() {
+        let commands = [
+            Command::PowerCycler { slot: 1, state: true },
+            Command::PowerCycler { slot: 20, state: false },
+            Command::Temperature { value: 100 },
+            Command::Brightness { value: 100 },
+        ];
+
+        for command in commands.iter() {
+            let (deserialized, _len) = Command::try_from(&command.as_arrayvec()[..]).unwrap().unwrap();
+            assert_eq!(command, &deserialized);
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "std")]
+    fn report_roundtrips_vec() {
+        let reports = [
+            Report::Click,
+            Report::DialValue { diff: 100 },
+            Report::EmergencyOff,
+            Report::Error { code: 80 },
+        ];
+
+        for report in reports.iter() {
+            let (deserialized, _len) = Report::try_from(&report.as_vec()[..]).unwrap().unwrap();
+            assert_eq!(report, &deserialized);
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "arrayvec")]
+    fn report_roundtrips_arrayvec() {
+        let reports = [
+            Report::Click,
+            Report::DialValue { diff: 100 },
+            Report::EmergencyOff,
+            Report::Error { code: 80 },
+        ];
+
+        for report in reports.iter() {
+            let (deserialized, _len) = Report::try_from(&report.as_arrayvec()[..]).unwrap().unwrap();
+            assert_eq!(report, &deserialized);
+        }
     }
 }
