@@ -158,6 +158,13 @@ pub struct Protocol {
 
 #[cfg(all(not(feature = "arrayvec"), feature = "std"))]
 impl Protocol {
+
+    pub fn new() -> Self {
+        Self {
+            buf: Vec::new()
+        }
+    }
+
     pub fn process_byte(&mut self, byte: u8) -> Result<Option<Command>, Error> {
         self.buf.push(byte);
         match Command::try_from(&self.buf[..]) {
@@ -178,6 +185,12 @@ pub struct Protocol {
 
 #[cfg(feature = "arrayvec")]
 impl Protocol {
+    pub fn new() -> Self {
+        Self {
+            buf: arrayvec::ArrayVec::new()
+        }
+    }
+
     pub fn process_byte(&mut self, byte: u8) -> Result<Option<Command>, Error> {
         self.buf.try_push(byte).map_err(|_| Error::BufferFull)?;
         match Command::try_from(&self.buf[..]) {
