@@ -1,3 +1,4 @@
+#![no_std]
 use arrayvec::ArrayVec;
 
 #[derive(Debug, PartialEq)]
