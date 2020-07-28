@@ -7,6 +7,11 @@ pub enum Command {
     Temperature { value: u16 },
 }
 
+pub enum Error {
+    BufferFull,
+    MalformedMessage,
+}
+
 impl Command {
     pub fn try_from(buf: &[u8]) -> Result<Option<(Command, usize)>, ()> {
         if buf.is_empty() {
@@ -145,6 +150,48 @@ impl Report {
         buf
     }
 }
+
+#[cfg(all(not(feature = "arrayvec"), feature = "std"))]
+pub struct Protocol {
+    buf: Vec<u8>,
+}
+
+#[cfg(all(not(feature = "arrayvec"), feature = "std"))]
+impl Protocol {
+    pub fn process_byte(&mut self, byte: u8) -> Result<Option<Command>, Error> {
+        self.buf.push(byte);
+        match Command::try_from(&self.buf[..]) {
+            Ok(Some((command, bytes_read))) => {
+                self.buf.drain(0..bytes_read);
+                Ok(Some(command))
+            },
+            Err(_) => Err(Error::MalformedMessage),
+            Ok(None) => Ok(None),
+        }
+    }
+}
+
+#[cfg(feature = "arrayvec")]
+pub struct Protocol {
+    buf: arrayvec::ArrayVec<[u8; 256]>,
+}
+
+#[cfg(feature = "arrayvec")]
+impl Protocol {
+    pub fn process_byte(&mut self, byte: u8) -> Result<Option<Command>, Error> {
+        self.buf.try_push(byte).map_err(|_| Error::BufferFull)?;
+        match Command::try_from(&self.buf[..]) {
+            Ok(Some((command, bytes_read))) => {
+                self.buf.drain(0..bytes_read);
+                Ok(Some(command))
+            },
+            Err(_) => Err(Error::MalformedMessage),
+            Ok(None) => Ok(None),
+        }
+    }
+}
+
+
 
 #[cfg(test)]
 mod tests {
