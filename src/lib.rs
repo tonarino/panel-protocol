@@ -75,7 +75,8 @@ pub enum Report {
     DialValue {
         diff: i8,
     },
-    Click,
+    Press,
+    LongPress,
     EmergencyOff,
     Error {
         code: u16,
@@ -93,17 +94,18 @@ impl Report {
 
         match *buf {
             [] => Ok(None),
-            [b'A', diff, ..] => {
+            [b'V', diff, ..] => {
                 let diff = i8::from_be_bytes([diff]);
                 Ok(Some((Report::DialValue { diff }, 2)))
             }
-            [b'B', ..] => Ok(Some((Report::Click, 1))),
-            [b'C', ..] => Ok(Some((Report::EmergencyOff, 1))),
-            [b'D', msb, lsb, ..] => {
+            [b'P', ..] => Ok(Some((Report::Press, 1))),
+            [b'L', ..] => Ok(Some((Report::LongPress, 1))),
+            [b'X', ..] => Ok(Some((Report::EmergencyOff, 1))),
+            [b'E', msb, lsb, ..] => {
                 let code = u16::from_be_bytes([msb, lsb]);
                 Ok(Some((Report::Error { code }, 3)))
             }
-            [b'E', len, ref message @ ..] if message.len() as u8 == len => Ok(Some((
+            [b'D', len, ref message @ ..] if message.len() as u8 == len => Ok(Some((
                 Report::Debug {
                     message: ArrayString::from(&core::str::from_utf8(message).unwrap()).unwrap(),
                 },
@@ -117,21 +119,24 @@ impl Report {
         let mut buf = ArrayVec::new();
         match *self {
             Report::DialValue { diff } => {
-                buf.push(b'A');
+                buf.push(b'V');
                 buf.try_extend_from_slice(&diff.to_be_bytes()).unwrap();
             }
-            Report::Click => {
-                buf.push(b'B');
+            Report::Press => {
+                buf.push(b'P');
+            }
+            Report::LongPress => {
+                buf.push(b'L');
             }
             Report::EmergencyOff => {
-                buf.push(b'C');
+                buf.push(b'X');
             }
             Report::Error { code } => {
-                buf.push(b'D');
+                buf.push(b'E');
                 buf.try_extend_from_slice(&code.to_be_bytes()).unwrap();
             }
             Report::Debug { ref message } => {
-                buf.push(b'E');
+                buf.push(b'D');
                 buf.push(message.len() as u8);
                 buf.try_extend_from_slice(message.as_bytes()).unwrap();
             }
@@ -194,7 +199,8 @@ mod tests {
     #[test]
     fn report_roundtrips_arrayvec() {
         let reports = [
-            Report::Click,
+            Report::Press,
+            Report::LongPress,
             Report::DialValue { diff: 100 },
             Report::EmergencyOff,
             Report::Error { code: 80 },
