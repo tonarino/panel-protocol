@@ -245,7 +245,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "std")]
     fn report_protocol_parse() {
         let reports = [
             Report::Press,
@@ -266,10 +265,7 @@ mod tests {
 
         let mut deserialized: ArrayVec<[Report; 5]> = ArrayVec::new();
         for b in bytes {
-            println!("byte: 0x{:x}", b);
-            println!("report buf: {:?}", &protocol.buf);
             if let Some(report) = protocol.process_byte(b).unwrap() {
-                println!("added {:?}", report);
                 deserialized.push(report);
             }
         }
@@ -278,7 +274,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "std")]
     fn command_protocol_parse() {
         let commands = [
             Command::PowerCycler {
@@ -304,10 +299,7 @@ mod tests {
 
         let mut deserialized: ArrayVec<[Command; 5]> = ArrayVec::new();
         for b in bytes {
-            println!("byte: 0x{:x}", b);
-            println!("report buf: {:?}", &protocol.buf);
             if let Some(command) = protocol.process_byte(b).unwrap() {
-                println!("added {:?}", command);
                 deserialized.push(command);
             }
         }
