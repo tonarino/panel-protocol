@@ -15,6 +15,16 @@ pub enum Error {
     MalformedMessage,
 }
 
+#[cfg(feature = "std")]
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for Error {}
+
 // Rust doesn't support max() as a const fn, but this should be
 // cmp::max(MAX_COMMAND_LEN, MAX_REPORT_LEN)
 pub const MAX_SERIAL_MESSAGE_LEN: usize = 256;
