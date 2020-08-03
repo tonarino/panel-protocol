@@ -9,6 +9,7 @@ pub enum Command {
     Temperature { value: u16 },
 }
 
+#[derive(Debug)]
 pub enum Error {
     BufferFull,
     MalformedMessage,
@@ -16,11 +17,11 @@ pub enum Error {
 
 // Rust doesn't support max() as a const fn, but this should be
 // cmp::max(MAX_COMMAND_LEN, MAX_REPORT_LEN)
-const MAX_SERIAL_MESSAGE_LEN: usize = 256;
+pub const MAX_SERIAL_MESSAGE_LEN: usize = 256;
 
-const MAX_COMMAND_LEN: usize = 8;
-const MAX_REPORT_LEN: usize = 256;
-const MAX_DEBUG_MSG_LEN: usize = MAX_REPORT_LEN - 2;
+pub const MAX_COMMAND_LEN: usize = 8;
+pub const MAX_REPORT_LEN: usize = 256;
+pub const MAX_DEBUG_MSG_LEN: usize = MAX_REPORT_LEN - 2;
 
 impl Command {
     pub fn try_from(buf: &[u8]) -> Result<Option<(Command, usize)>, ()> {
@@ -45,6 +46,7 @@ impl Command {
                 let value = u16::from_be_bytes([msb, lsb]);
                 Ok(Some((Command::Temperature { value }, 3)))
             }
+            [header, ..] if b"ABC".contains(&header) => Ok(None),
             _ => Err(()),
         }
     }
@@ -111,6 +113,7 @@ impl Report {
                 },
                 2 + message.len(),
             ))),
+            [header, ..] if b"VPLXED".contains(&header) => Ok(None),
             _ => Err(()),
         }
     }
@@ -145,11 +148,35 @@ impl Report {
     }
 }
 
-pub struct Protocol {
+pub struct ReportReader {
+    pub buf: arrayvec::ArrayVec<[u8; MAX_SERIAL_MESSAGE_LEN]>,
+}
+
+impl ReportReader {
+    pub fn new() -> Self {
+        Self {
+            buf: arrayvec::ArrayVec::new(),
+        }
+    }
+
+    pub fn process_byte(&mut self, byte: u8) -> Result<Option<Report>, Error> {
+        self.buf.try_push(byte).map_err(|_| Error::BufferFull)?;
+        match Report::try_from(&self.buf[..]) {
+            Ok(Some((command, bytes_read))) => {
+                self.buf.drain(0..bytes_read);
+                Ok(Some(command))
+            }
+            Err(_) => Err(Error::MalformedMessage),
+            Ok(None) => Ok(None),
+        }
+    }
+}
+
+pub struct CommandReader {
     buf: arrayvec::ArrayVec<[u8; MAX_SERIAL_MESSAGE_LEN]>,
 }
 
-impl Protocol {
+impl CommandReader {
     pub fn new() -> Self {
         Self {
             buf: arrayvec::ArrayVec::new(),
@@ -215,5 +242,76 @@ mod tests {
                 .unwrap();
             assert_eq!(report, &deserialized);
         }
+    }
+
+    #[test]
+    #[cfg(feature = "std")]
+    fn report_protocol_parse() {
+        let reports = [
+            Report::Press,
+            Report::LongPress,
+            Report::DialValue { diff: 100 },
+            Report::EmergencyOff,
+            Report::Error { code: 80 },
+        ];
+
+        let mut bytes: ArrayVec<[u8; MAX_SERIAL_MESSAGE_LEN]> = ArrayVec::new();
+        for report in reports.iter() {
+            bytes
+                .try_extend_from_slice(&report.as_arrayvec()[..])
+                .unwrap();
+        }
+
+        let mut protocol = ReportReader::new();
+
+        let mut deserialized: ArrayVec<[Report; 5]> = ArrayVec::new();
+        for b in bytes {
+            println!("byte: 0x{:x}", b);
+            println!("report buf: {:?}", &protocol.buf);
+            if let Some(report) = protocol.process_byte(b).unwrap() {
+                println!("added {:?}", report);
+                deserialized.push(report);
+            }
+        }
+
+        assert_eq!(&deserialized[..], &reports[..]);
+    }
+
+    #[test]
+    #[cfg(feature = "std")]
+    fn command_protocol_parse() {
+        let commands = [
+            Command::PowerCycler {
+                slot: 1,
+                state: true,
+            },
+            Command::PowerCycler {
+                slot: 20,
+                state: false,
+            },
+            Command::Temperature { value: 100 },
+            Command::Brightness { value: 100 },
+        ];
+
+        let mut bytes: ArrayVec<[u8; MAX_SERIAL_MESSAGE_LEN]> = ArrayVec::new();
+        for command in commands.iter() {
+            bytes
+                .try_extend_from_slice(&command.as_arrayvec()[..])
+                .unwrap();
+        }
+
+        let mut protocol = CommandReader::new();
+
+        let mut deserialized: ArrayVec<[Command; 5]> = ArrayVec::new();
+        for b in bytes {
+            println!("byte: 0x{:x}", b);
+            println!("report buf: {:?}", &protocol.buf);
+            if let Some(command) = protocol.process_byte(b).unwrap() {
+                println!("added {:?}", command);
+                deserialized.push(command);
+            }
+        }
+
+        assert_eq!(&deserialized[..], &commands[..]);
     }
 }
