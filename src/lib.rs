@@ -1,6 +1,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use arrayvec::{ArrayString, ArrayVec};
+pub use arrayvec::{ArrayString, ArrayVec};
 
 #[derive(Debug, PartialEq)]
 pub enum Command {
