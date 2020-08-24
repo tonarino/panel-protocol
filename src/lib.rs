@@ -5,8 +5,8 @@ pub use arrayvec::{ArrayString, ArrayVec};
 #[derive(Debug, PartialEq)]
 pub enum Command {
     PowerCycler { slot: u8, state: bool },
-    Brightness { value: u16 },
-    Temperature { value: u16 },
+    Brightness { target: u8, value: u16 },
+    Temperature { target: u8, value: u16 },
 }
 
 #[derive(Debug)]
@@ -48,13 +48,13 @@ impl Command {
                 },
                 3,
             ))),
-            [b'B', msb, lsb, ..] => {
+            [b'B', target, msb, lsb, ..] => {
                 let value = u16::from_be_bytes([msb, lsb]);
-                Ok(Some((Command::Brightness { value }, 3)))
+                Ok(Some((Command::Brightness { target, value }, 4)))
             }
-            [b'C', msb, lsb, ..] => {
+            [b'C', target, msb, lsb, ..] => {
                 let value = u16::from_be_bytes([msb, lsb]);
-                Ok(Some((Command::Temperature { value }, 3)))
+                Ok(Some((Command::Temperature { target, value }, 4)))
             }
             [header, ..] if b"ABC".contains(&header) => Ok(None),
             _ => Err(()),
@@ -69,12 +69,14 @@ impl Command {
                 buf.push(slot);
                 buf.push(u8::from(state));
             }
-            Command::Brightness { value } => {
+            Command::Brightness { target, value } => {
                 buf.push(b'B');
+                buf.push(target);
                 buf.try_extend_from_slice(&value.to_be_bytes()).unwrap();
             }
-            Command::Temperature { value } => {
+            Command::Temperature { target, value } => {
                 buf.push(b'C');
+                buf.push(target);
                 buf.try_extend_from_slice(&value.to_be_bytes()).unwrap();
             }
         }
@@ -221,8 +223,14 @@ mod tests {
                 slot: 20,
                 state: false,
             },
-            Command::Temperature { value: 100 },
-            Command::Brightness { value: 100 },
+            Command::Temperature {
+                target: 2,
+                value: 100,
+            },
+            Command::Brightness {
+                target: 10,
+                value: 100,
+            },
         ];
 
         for command in commands.iter() {
@@ -294,8 +302,14 @@ mod tests {
                 slot: 20,
                 state: false,
             },
-            Command::Temperature { value: 100 },
-            Command::Brightness { value: 100 },
+            Command::Temperature {
+                target: 2,
+                value: 100,
+            },
+            Command::Brightness {
+                target: 10,
+                value: 100,
+            },
         ];
 
         let mut bytes: ArrayVec<[u8; MAX_SERIAL_MESSAGE_LEN]> = ArrayVec::new();
