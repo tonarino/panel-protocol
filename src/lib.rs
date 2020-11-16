@@ -5,14 +5,16 @@ pub use arrayvec::{ArrayString, ArrayVec};
 #[derive(Debug, PartialEq)]
 pub enum Command {
     PowerCycler { slot: u8, state: bool },
-    Brightness { value: u16 },
-    Temperature { value: u16 },
+    Brightness { target: u8, value: u16 },
+    Temperature { target: u8, value: u16 },
 }
 
 #[derive(Debug)]
 pub enum Error {
     BufferFull,
     MalformedMessage,
+    CommandQueueFull,
+    ReportQueueFull,
 }
 
 #[cfg(feature = "std")]
@@ -32,6 +34,8 @@ pub const MAX_SERIAL_MESSAGE_LEN: usize = 256;
 pub const MAX_COMMAND_LEN: usize = 8;
 pub const MAX_REPORT_LEN: usize = 256;
 pub const MAX_DEBUG_MSG_LEN: usize = MAX_REPORT_LEN - 2;
+pub const MAX_REPORT_QUEUE_LEN: usize = 6;
+pub const MAX_COMMAND_QUEUE_LEN: usize = 6;
 
 impl Command {
     pub fn try_from(buf: &[u8]) -> Result<Option<(Command, usize)>, ()> {
@@ -48,13 +52,13 @@ impl Command {
                 },
                 3,
             ))),
-            [b'B', msb, lsb, ..] => {
+            [b'B', target, msb, lsb, ..] => {
                 let value = u16::from_be_bytes([msb, lsb]);
-                Ok(Some((Command::Brightness { value }, 3)))
+                Ok(Some((Command::Brightness { target, value }, 4)))
             }
-            [b'C', msb, lsb, ..] => {
+            [b'C', target, msb, lsb, ..] => {
                 let value = u16::from_be_bytes([msb, lsb]);
-                Ok(Some((Command::Temperature { value }, 3)))
+                Ok(Some((Command::Temperature { target, value }, 4)))
             }
             [header, ..] if b"ABC".contains(&header) => Ok(None),
             _ => Err(()),
@@ -69,12 +73,14 @@ impl Command {
                 buf.push(slot);
                 buf.push(u8::from(state));
             }
-            Command::Brightness { value } => {
+            Command::Brightness { target, value } => {
                 buf.push(b'B');
+                buf.push(target);
                 buf.try_extend_from_slice(&value.to_be_bytes()).unwrap();
             }
-            Command::Temperature { value } => {
+            Command::Temperature { target, value } => {
                 buf.push(b'C');
+                buf.push(target);
                 buf.try_extend_from_slice(&value.to_be_bytes()).unwrap();
             }
         }
@@ -82,8 +88,10 @@ impl Command {
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, PartialEq)]
 pub enum Report {
+    Heartbeat,
     DialValue {
         diff: i8,
     },
@@ -106,6 +114,7 @@ impl Report {
 
         match *buf {
             [] => Ok(None),
+            [b'H', ..] => Ok(Some((Report::Heartbeat, 1))),
             [b'V', diff, ..] => {
                 let diff = i8::from_be_bytes([diff]);
                 Ok(Some((Report::DialValue { diff }, 2)))
@@ -131,6 +140,9 @@ impl Report {
     pub fn as_arrayvec(&self) -> ArrayVec<[u8; MAX_REPORT_LEN]> {
         let mut buf = ArrayVec::new();
         match *self {
+            Report::Heartbeat => {
+                buf.push(b'H');
+            }
             Report::DialValue { diff } => {
                 buf.push(b'V');
                 buf.try_extend_from_slice(&diff.to_be_bytes()).unwrap();
@@ -159,50 +171,95 @@ impl Report {
 }
 
 pub struct ReportReader {
-    pub buf: arrayvec::ArrayVec<[u8; MAX_SERIAL_MESSAGE_LEN]>,
+    pub buf: ArrayVec<[u8; MAX_SERIAL_MESSAGE_LEN]>,
 }
 
 impl ReportReader {
     pub fn new() -> Self {
         Self {
-            buf: arrayvec::ArrayVec::new(),
+            buf: ArrayVec::new(),
         }
     }
 
-    pub fn process_byte(&mut self, byte: u8) -> Result<Option<Report>, Error> {
-        self.buf.try_push(byte).map_err(|_| Error::BufferFull)?;
-        match Report::try_from(&self.buf[..]) {
-            Ok(Some((command, bytes_read))) => {
-                self.buf.drain(0..bytes_read);
-                Ok(Some(command))
+    pub fn process_bytes(
+        &mut self,
+        bytes: &[u8],
+    ) -> Result<ArrayVec<[Report; MAX_REPORT_QUEUE_LEN]>, Error> {
+        self.buf
+            .try_extend_from_slice(bytes)
+            .map_err(|_| Error::BufferFull)?;
+
+        let mut output = ArrayVec::new();
+
+        loop {
+            match Report::try_from(&self.buf[..]) {
+                Ok(Some((report, bytes_read))) => {
+                    self.buf.drain(0..bytes_read);
+                    if output.len() < MAX_REPORT_QUEUE_LEN {
+                        output.push(report);
+                    } else {
+                        return Err(Error::ReportQueueFull);
+                    }
+                }
+                Err(_) => return Err(Error::MalformedMessage),
+                Ok(None) => break,
             }
-            Err(_) => Err(Error::MalformedMessage),
-            Ok(None) => Ok(None),
         }
+
+        Ok(output)
+    }
+}
+
+impl Default for ReportReader {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
 pub struct CommandReader {
-    buf: arrayvec::ArrayVec<[u8; MAX_SERIAL_MESSAGE_LEN]>,
+    buf: ArrayVec<[u8; MAX_SERIAL_MESSAGE_LEN]>,
 }
 
 impl CommandReader {
     pub fn new() -> Self {
         Self {
-            buf: arrayvec::ArrayVec::new(),
+            buf: ArrayVec::new(),
         }
     }
 
-    pub fn process_byte(&mut self, byte: u8) -> Result<Option<Command>, Error> {
-        self.buf.try_push(byte).map_err(|_| Error::BufferFull)?;
-        match Command::try_from(&self.buf[..]) {
-            Ok(Some((command, bytes_read))) => {
-                self.buf.drain(0..bytes_read);
-                Ok(Some(command))
+    pub fn process_bytes(
+        &mut self,
+        bytes: &[u8],
+    ) -> Result<ArrayVec<[Command; MAX_COMMAND_QUEUE_LEN]>, Error> {
+        self.buf
+            .try_extend_from_slice(bytes)
+            .map_err(|_| Error::BufferFull)?;
+
+        let mut output = ArrayVec::new();
+
+        loop {
+            match Command::try_from(&self.buf[..]) {
+                Ok(Some((command, bytes_read))) => {
+                    self.buf.drain(0..bytes_read);
+
+                    if output.len() < MAX_COMMAND_QUEUE_LEN {
+                        output.push(command);
+                    } else {
+                        return Err(Error::CommandQueueFull);
+                    }
+                }
+                Err(_) => return Err(Error::MalformedMessage),
+                Ok(None) => break,
             }
-            Err(_) => Err(Error::MalformedMessage),
-            Ok(None) => Ok(None),
         }
+
+        Ok(output)
+    }
+}
+
+impl Default for CommandReader {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -221,8 +278,14 @@ mod tests {
                 slot: 20,
                 state: false,
             },
-            Command::Temperature { value: 100 },
-            Command::Brightness { value: 100 },
+            Command::Temperature {
+                target: 2,
+                value: 100,
+            },
+            Command::Brightness {
+                target: 10,
+                value: 100,
+            },
         ];
 
         for command in commands.iter() {
@@ -257,6 +320,7 @@ mod tests {
     #[test]
     fn report_protocol_parse() {
         let reports = [
+            Report::Heartbeat,
             Report::Press,
             Report::LongPress,
             Report::DialValue { diff: 100 },
@@ -272,15 +336,9 @@ mod tests {
         }
 
         let mut protocol = ReportReader::new();
+        let report_output = protocol.process_bytes(&bytes).unwrap();
 
-        let mut deserialized: ArrayVec<[Report; 5]> = ArrayVec::new();
-        for b in bytes {
-            if let Some(report) = protocol.process_byte(b).unwrap() {
-                deserialized.push(report);
-            }
-        }
-
-        assert_eq!(&deserialized[..], &reports[..]);
+        assert_eq!(&report_output[..], &reports[..]);
     }
 
     #[test]
@@ -294,8 +352,14 @@ mod tests {
                 slot: 20,
                 state: false,
             },
-            Command::Temperature { value: 100 },
-            Command::Brightness { value: 100 },
+            Command::Temperature {
+                target: 2,
+                value: 100,
+            },
+            Command::Brightness {
+                target: 10,
+                value: 100,
+            },
         ];
 
         let mut bytes: ArrayVec<[u8; MAX_SERIAL_MESSAGE_LEN]> = ArrayVec::new();
@@ -306,14 +370,8 @@ mod tests {
         }
 
         let mut protocol = CommandReader::new();
+        let command_output = protocol.process_bytes(&bytes).unwrap();
 
-        let mut deserialized: ArrayVec<[Command; 5]> = ArrayVec::new();
-        for b in bytes {
-            if let Some(command) = protocol.process_byte(b).unwrap() {
-                deserialized.push(command);
-            }
-        }
-
-        assert_eq!(&deserialized[..], &commands[..]);
+        assert_eq!(&command_output[..], &commands[..]);
     }
 }
