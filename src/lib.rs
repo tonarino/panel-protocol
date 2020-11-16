@@ -45,21 +45,17 @@ impl Command {
 
         match *buf {
             [] => Ok(None),
-            [b'A', slot, state, ..] => Ok(Some((
-                Command::PowerCycler {
-                    slot,
-                    state: state != 0,
-                },
-                3,
-            ))),
+            [b'A', slot, state, ..] => {
+                Ok(Some((Command::PowerCycler { slot, state: state != 0 }, 3)))
+            },
             [b'B', target, msb, lsb, ..] => {
                 let value = u16::from_be_bytes([msb, lsb]);
                 Ok(Some((Command::Brightness { target, value }, 4)))
-            }
+            },
             [b'C', target, msb, lsb, ..] => {
                 let value = u16::from_be_bytes([msb, lsb]);
                 Ok(Some((Command::Temperature { target, value }, 4)))
-            }
+            },
             [header, ..] if b"ABC".contains(&header) => Ok(None),
             _ => Err(()),
         }
@@ -72,17 +68,17 @@ impl Command {
                 buf.push(b'A');
                 buf.push(slot);
                 buf.push(u8::from(state));
-            }
+            },
             Command::Brightness { target, value } => {
                 buf.push(b'B');
                 buf.push(target);
                 buf.try_extend_from_slice(&value.to_be_bytes()).unwrap();
-            }
+            },
             Command::Temperature { target, value } => {
                 buf.push(b'C');
                 buf.push(target);
                 buf.try_extend_from_slice(&value.to_be_bytes()).unwrap();
-            }
+            },
         }
         buf
     }
@@ -92,18 +88,12 @@ impl Command {
 #[derive(Debug, PartialEq)]
 pub enum Report {
     Heartbeat,
-    DialValue {
-        diff: i8,
-    },
+    DialValue { diff: i8 },
     Press,
     LongPress,
     EmergencyOff,
-    Error {
-        code: u16,
-    },
-    Debug {
-        message: ArrayString<[u8; MAX_DEBUG_MSG_LEN]>,
-    },
+    Error { code: u16 },
+    Debug { message: ArrayString<[u8; MAX_DEBUG_MSG_LEN]> },
 }
 
 impl Report {
@@ -118,14 +108,14 @@ impl Report {
             [b'V', diff, ..] => {
                 let diff = i8::from_be_bytes([diff]);
                 Ok(Some((Report::DialValue { diff }, 2)))
-            }
+            },
             [b'P', ..] => Ok(Some((Report::Press, 1))),
             [b'L', ..] => Ok(Some((Report::LongPress, 1))),
             [b'X', ..] => Ok(Some((Report::EmergencyOff, 1))),
             [b'E', msb, lsb, ..] => {
                 let code = u16::from_be_bytes([msb, lsb]);
                 Ok(Some((Report::Error { code }, 3)))
-            }
+            },
             [b'D', len, ref message @ ..] if message.len() as u8 == len => Ok(Some((
                 Report::Debug {
                     message: ArrayString::from(&core::str::from_utf8(message).unwrap()).unwrap(),
@@ -142,29 +132,29 @@ impl Report {
         match *self {
             Report::Heartbeat => {
                 buf.push(b'H');
-            }
+            },
             Report::DialValue { diff } => {
                 buf.push(b'V');
                 buf.try_extend_from_slice(&diff.to_be_bytes()).unwrap();
-            }
+            },
             Report::Press => {
                 buf.push(b'P');
-            }
+            },
             Report::LongPress => {
                 buf.push(b'L');
-            }
+            },
             Report::EmergencyOff => {
                 buf.push(b'X');
-            }
+            },
             Report::Error { code } => {
                 buf.push(b'E');
                 buf.try_extend_from_slice(&code.to_be_bytes()).unwrap();
-            }
+            },
             Report::Debug { ref message } => {
                 buf.push(b'D');
                 buf.push(message.len() as u8);
                 buf.try_extend_from_slice(message.as_bytes()).unwrap();
-            }
+            },
         }
         buf
     }
@@ -176,18 +166,14 @@ pub struct ReportReader {
 
 impl ReportReader {
     pub fn new() -> Self {
-        Self {
-            buf: ArrayVec::new(),
-        }
+        Self { buf: ArrayVec::new() }
     }
 
     pub fn process_bytes(
         &mut self,
         bytes: &[u8],
     ) -> Result<ArrayVec<[Report; MAX_REPORT_QUEUE_LEN]>, Error> {
-        self.buf
-            .try_extend_from_slice(bytes)
-            .map_err(|_| Error::BufferFull)?;
+        self.buf.try_extend_from_slice(bytes).map_err(|_| Error::BufferFull)?;
 
         let mut output = ArrayVec::new();
 
@@ -200,7 +186,7 @@ impl ReportReader {
                     } else {
                         return Err(Error::ReportQueueFull);
                     }
-                }
+                },
                 Err(_) => return Err(Error::MalformedMessage),
                 Ok(None) => break,
             }
@@ -222,18 +208,14 @@ pub struct CommandReader {
 
 impl CommandReader {
     pub fn new() -> Self {
-        Self {
-            buf: ArrayVec::new(),
-        }
+        Self { buf: ArrayVec::new() }
     }
 
     pub fn process_bytes(
         &mut self,
         bytes: &[u8],
     ) -> Result<ArrayVec<[Command; MAX_COMMAND_QUEUE_LEN]>, Error> {
-        self.buf
-            .try_extend_from_slice(bytes)
-            .map_err(|_| Error::BufferFull)?;
+        self.buf.try_extend_from_slice(bytes).map_err(|_| Error::BufferFull)?;
 
         let mut output = ArrayVec::new();
 
@@ -247,7 +229,7 @@ impl CommandReader {
                     } else {
                         return Err(Error::CommandQueueFull);
                     }
-                }
+                },
                 Err(_) => return Err(Error::MalformedMessage),
                 Ok(None) => break,
             }
@@ -270,28 +252,15 @@ mod tests {
     #[test]
     fn command_roundtrips_arrayvec() {
         let commands = [
-            Command::PowerCycler {
-                slot: 1,
-                state: true,
-            },
-            Command::PowerCycler {
-                slot: 20,
-                state: false,
-            },
-            Command::Temperature {
-                target: 2,
-                value: 100,
-            },
-            Command::Brightness {
-                target: 10,
-                value: 100,
-            },
+            Command::PowerCycler { slot: 1, state: true },
+            Command::PowerCycler { slot: 20, state: false },
+            Command::Temperature { target: 2, value: 100 },
+            Command::Brightness { target: 10, value: 100 },
         ];
 
         for command in commands.iter() {
-            let (deserialized, _len) = Command::try_from(&command.as_arrayvec()[..])
-                .unwrap()
-                .unwrap();
+            let (deserialized, _len) =
+                Command::try_from(&command.as_arrayvec()[..]).unwrap().unwrap();
             assert_eq!(command, &deserialized);
         }
     }
@@ -304,15 +273,12 @@ mod tests {
             Report::DialValue { diff: 100 },
             Report::EmergencyOff,
             Report::Error { code: 80 },
-            Report::Debug {
-                message: ArrayString::from("the frequency is 1000000000Hz").unwrap(),
-            },
+            Report::Debug { message: ArrayString::from("the frequency is 1000000000Hz").unwrap() },
         ];
 
         for report in reports.iter() {
-            let (deserialized, _len) = Report::try_from(&report.as_arrayvec()[..])
-                .unwrap()
-                .unwrap();
+            let (deserialized, _len) =
+                Report::try_from(&report.as_arrayvec()[..]).unwrap().unwrap();
             assert_eq!(report, &deserialized);
         }
     }
@@ -330,9 +296,7 @@ mod tests {
 
         let mut bytes: ArrayVec<[u8; MAX_SERIAL_MESSAGE_LEN]> = ArrayVec::new();
         for report in reports.iter() {
-            bytes
-                .try_extend_from_slice(&report.as_arrayvec()[..])
-                .unwrap();
+            bytes.try_extend_from_slice(&report.as_arrayvec()[..]).unwrap();
         }
 
         let mut protocol = ReportReader::new();
@@ -344,29 +308,15 @@ mod tests {
     #[test]
     fn command_protocol_parse() {
         let commands = [
-            Command::PowerCycler {
-                slot: 1,
-                state: true,
-            },
-            Command::PowerCycler {
-                slot: 20,
-                state: false,
-            },
-            Command::Temperature {
-                target: 2,
-                value: 100,
-            },
-            Command::Brightness {
-                target: 10,
-                value: 100,
-            },
+            Command::PowerCycler { slot: 1, state: true },
+            Command::PowerCycler { slot: 20, state: false },
+            Command::Temperature { target: 2, value: 100 },
+            Command::Brightness { target: 10, value: 100 },
         ];
 
         let mut bytes: ArrayVec<[u8; MAX_SERIAL_MESSAGE_LEN]> = ArrayVec::new();
         for command in commands.iter() {
-            bytes
-                .try_extend_from_slice(&command.as_arrayvec()[..])
-                .unwrap();
+            bytes.try_extend_from_slice(&command.as_arrayvec()[..]).unwrap();
         }
 
         let mut protocol = CommandReader::new();
