@@ -7,6 +7,19 @@ edition = "2018"
 [features]
 default = []
 std = []
+# This feature implements serde::{Serialize, Deserialize} for Command and Report structs.
+serde_support = ["serde", "std"]
 
 [dependencies]
 arrayvec = { version = "0.5", default-features = false, features = ["array-sizes-129-255"] }
+serde = { version = "1.0", optional = true }
+
+[[example]]
+name = "cli"
+required-features = ["serde_support"]
+
+[dev-dependencies]
+serial-core = "0.4"
+serial-unix = "0.4"
+failure = "0.1"
+ron = "0.6"

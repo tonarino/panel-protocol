@@ -3,6 +3,7 @@
 pub use arrayvec::{ArrayString, ArrayVec};
 
 #[derive(Debug, PartialEq)]
+#[cfg_attr(feature = "serde_support", derive(serde::Serialize, serde::Deserialize))]
 pub enum Command {
     PowerCycler { slot: u8, state: bool },
     Brightness { target: u8, value: u16 },
@@ -95,16 +96,32 @@ impl Command {
     }
 }
 
+type DebugMessage = ArrayString<[u8; MAX_DEBUG_MSG_LEN]>;
+
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, PartialEq)]
+#[cfg_attr(feature = "serde_support", derive(serde::Serialize, serde::Deserialize))]
 pub enum Report {
     Heartbeat,
-    DialValue { diff: i8 },
+    DialValue {
+        diff: i8,
+    },
     Press,
     LongPress,
     EmergencyOff,
-    Error { code: u16 },
-    Debug { message: ArrayString<[u8; MAX_DEBUG_MSG_LEN]> },
+    Error {
+        code: u16,
+    },
+    Debug {
+        #[cfg_attr(
+            feature = "serde_support",
+            serde(
+                serialize_with = "serialize_debug_message",
+                deserialize_with = "deserialize_debug_message"
+            )
+        )]
+        message: DebugMessage,
+    },
 }
 
 impl Report {
@@ -169,6 +186,39 @@ impl Report {
         }
         buf
     }
+}
+
+#[cfg(feature = "serde_support")]
+fn serialize_debug_message<S>(value: &DebugMessage, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.serialize_str(value.as_str())
+}
+
+#[cfg(feature = "serde_support")]
+fn deserialize_debug_message<'de, D>(deserializer: D) -> Result<DebugMessage, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    struct DebugMessageVisitor(std::marker::PhantomData<DebugMessage>);
+
+    impl<'de> serde::de::Visitor<'de> for DebugMessageVisitor {
+        type Value = DebugMessage;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("string")
+        }
+
+        fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(DebugMessage::from(value).map_err(serde::de::Error::custom)?)
+        }
+    }
+
+    deserializer.deserialize_any(DebugMessageVisitor(std::marker::PhantomData))
 }
 
 pub struct ReportReader {
