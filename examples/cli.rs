@@ -28,6 +28,7 @@ impl Panel {
         tty.set_timeout(TTY_TIMEOUT)?;
 
         // The panel firmware runs at 115200 baud.
+        // TODO: Remove this after switching to the native USB connection.
         let mut tty_settings = tty.read_settings()?;
         tty_settings.set_baud_rate(BaudRate::Baud115200)?;
         tty.write_settings(&tty_settings)?;
