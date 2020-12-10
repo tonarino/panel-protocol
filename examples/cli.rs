@@ -96,7 +96,7 @@ fn main() {
                     }
                 },
                 Err(e) => {
-                    println!("Failed to poll reports: {}", e);
+                    panic!("Failed to poll reports: {}", e);
                 },
             }
             thread::sleep(Duration::from_millis(1));
@@ -114,7 +114,7 @@ fn main() {
             Ok(command) => {
                 match panel.lock().unwrap().send(&command) {
                     Ok(_) => println!("Sent command: {:?}", &command),
-                    Err(e) => println!("Failed to send command {:?}: {}", &command, e),
+                    Err(e) => panic!("Failed to send command {:?}: {}", &command, e),
                 }
             },
             Err(e) => {
