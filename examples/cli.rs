@@ -99,6 +99,7 @@ fn main() {
                     println!("Failed to poll reports: {}", e);
                 },
             }
+            thread::sleep(Duration::from_millis(1));
         }
     });
 
@@ -111,8 +112,9 @@ fn main() {
 
         match ron::de::from_str(&line) {
             Ok(command) => {
-                if let Err(e) = panel.lock().unwrap().send(&command) {
-                    println!("Failed to send command {:?}: {}", &command, e);
+                match panel.lock().unwrap().send(&command) {
+                    Ok(_) => println!("Sent command: {:?}", &command),
+                    Err(e) => println!("Failed to send command {:?}: {}", &command, e),
                 }
             },
             Err(e) => {
