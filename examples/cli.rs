@@ -9,7 +9,10 @@ use std::{
     env, io,
     io::{Read, Write},
     path::PathBuf,
-    sync::{Arc, Mutex},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    },
     thread,
     time::Duration,
 };
@@ -83,11 +86,16 @@ fn main() {
     let port = &args[1];
     let panel = match Panel::new(port) {
         Ok(panel) => Arc::new(Mutex::new(panel)),
-        Err(e) => panic!("Failed to open TTY port {}: {}", port, e),
+        Err(e) => {
+            println!("Failed to open TTY port {}: {}", port, e);
+            return;
+        },
     };
 
+    let should_exit = Arc::new(AtomicBool::new(false));
     thread::spawn({
         let panel = panel.clone();
+        let should_exit = should_exit.clone();
         move || loop {
             match panel.lock().unwrap().poll() {
                 Ok(reports) => {
@@ -96,7 +104,9 @@ fn main() {
                     }
                 },
                 Err(e) => {
-                    panic!("Failed to poll reports: {}", e);
+                    println!("Failed to poll reports: {}", e);
+                    should_exit.store(true, Ordering::SeqCst);
+                    return;
                 },
             }
             thread::sleep(Duration::from_millis(1));
@@ -104,18 +114,19 @@ fn main() {
     });
 
     let stdin = io::stdin();
-    loop {
+    while !should_exit.load(Ordering::SeqCst) {
         let mut line = String::new();
         if let Err(e) = stdin.read_line(&mut line) {
             panic!("Failed to read line: {}", e);
         }
 
         match ron::de::from_str(&line) {
-            Ok(command) => {
-                match panel.lock().unwrap().send(&command) {
-                    Ok(_) => println!("Sent command: {:?}", &command),
-                    Err(e) => panic!("Failed to send command {:?}: {}", &command, e),
-                }
+            Ok(command) => match panel.lock().unwrap().send(&command) {
+                Ok(_) => println!("Sent command: {:?}", &command),
+                Err(e) => {
+                    println!("Failed to send command {:?}: {}", &command, e);
+                    return;
+                },
             },
             Err(e) => {
                 println!("Failed to parse \"{}\": {}", line.trim_end(), e);
