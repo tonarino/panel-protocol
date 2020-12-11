@@ -31,3 +31,10 @@ cargo clippy
 ```
 cargo +nightly fmt
 ```
+
+## Examples
+
+`cli` example is a useful tool for debugging a device that speaks the protocol.
+```
+cargo run --example cli --features="serde_support" <usb_port>
+```
