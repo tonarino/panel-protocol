@@ -68,6 +68,7 @@ impl Command {
 
     pub fn as_arrayvec(&self) -> ArrayVec<[u8; MAX_COMMAND_LEN]> {
         let mut buf = ArrayVec::new();
+
         match *self {
             Command::PowerCycler { slot, state } => {
                 buf.push(b'A');
@@ -107,7 +108,7 @@ pub enum Report {
         diff: i8,
     },
     Press,
-    LongPress,
+    Release,
     EmergencyOff,
     Error {
         code: u16,
@@ -138,7 +139,7 @@ impl Report {
                 Ok(Some((Report::DialValue { diff }, 2)))
             },
             [b'P', ..] => Ok(Some((Report::Press, 1))),
-            [b'L', ..] => Ok(Some((Report::LongPress, 1))),
+            [b'R', ..] => Ok(Some((Report::Release, 1))),
             [b'X', ..] => Ok(Some((Report::EmergencyOff, 1))),
             [b'E', msb, lsb, ..] => {
                 let code = u16::from_be_bytes([msb, lsb]);
@@ -150,13 +151,14 @@ impl Report {
                 },
                 2 + message.len(),
             ))),
-            [header, ..] if b"VPLXED".contains(&header) => Ok(None),
+            [header, ..] if b"VED".contains(&header) => Ok(None),
             _ => Err(()),
         }
     }
 
     pub fn as_arrayvec(&self) -> ArrayVec<[u8; MAX_REPORT_LEN]> {
         let mut buf = ArrayVec::new();
+
         match *self {
             Report::Heartbeat => {
                 buf.push(b'H');
@@ -168,8 +170,8 @@ impl Report {
             Report::Press => {
                 buf.push(b'P');
             },
-            Report::LongPress => {
-                buf.push(b'L');
+            Report::Release => {
+                buf.push(b'R');
             },
             Report::EmergencyOff => {
                 buf.push(b'X');
@@ -331,7 +333,7 @@ mod tests {
     fn report_roundtrips_arrayvec() {
         let reports = [
             Report::Press,
-            Report::LongPress,
+            Report::Release,
             Report::DialValue { diff: 100 },
             Report::EmergencyOff,
             Report::Error { code: 80 },
@@ -350,7 +352,7 @@ mod tests {
         let reports = [
             Report::Heartbeat,
             Report::Press,
-            Report::LongPress,
+            Report::Release,
             Report::DialValue { diff: 100 },
             Report::EmergencyOff,
             Report::Error { code: 80 },
