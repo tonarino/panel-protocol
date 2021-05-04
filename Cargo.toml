@@ -2,6 +2,7 @@
 name = "panel-protocol"
 version = "0.3.0"
 authors = ["Jake McGinty <me@jake.su>"]
+license = "MIT"
 edition = "2018"
 
 [features]
