@@ -9,6 +9,7 @@ pub enum Command {
     Brightness { target: u8, value: u16 },
     Temperature { target: u8, value: u16 },
     Led { r: u8, g: u8, b: u8, pulse: bool },
+    Bootload, // Restart in bootloader mode.
 }
 
 #[derive(Debug)]
@@ -61,6 +62,7 @@ impl Command {
             [b'D', r, g, b, pulse, ..] => {
                 Ok(Some((Command::Led { r, g, b, pulse: pulse != 0 }, 5)))
             },
+            [b'E', ..] => Ok(Some((Command::Bootload, 1))),
             [header, ..] if b"ABCD".contains(&header) => Ok(None),
             _ => Err(()),
         }
@@ -92,6 +94,7 @@ impl Command {
                 buf.push(b);
                 buf.push(u8::from(pulse));
             },
+            Command::Bootload => buf.push(b'E'),
         }
         buf
     }
