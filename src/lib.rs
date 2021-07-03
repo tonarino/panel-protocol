@@ -8,7 +8,7 @@ pub enum Command {
     PowerCycler { slot: u8, state: bool },
     Brightness { target: u8, value: u16 },
     Temperature { target: u8, value: u16 },
-    Led { r: u8, g: u8, b: u8, pulse: bool },
+    Led { r: u8, g: u8, b: u8, pulse: bool, pulse_interval_ms: Option<u32> },
     Bootload, // Restart in bootloader mode.
 }
 
@@ -34,7 +34,7 @@ impl std::error::Error for Error {}
 // cmp::max(MAX_COMMAND_LEN, MAX_REPORT_LEN)
 pub const MAX_SERIAL_MESSAGE_LEN: usize = 256;
 
-pub const MAX_COMMAND_LEN: usize = 8;
+pub const MAX_COMMAND_LEN: usize = 16;
 pub const MAX_REPORT_LEN: usize = 256;
 pub const MAX_DEBUG_MSG_LEN: usize = MAX_REPORT_LEN - 2;
 pub const MAX_REPORT_QUEUE_LEN: usize = 6;
@@ -59,8 +59,22 @@ impl Command {
                 let value = u16::from_be_bytes([msb, lsb]);
                 Ok(Some((Command::Temperature { target, value }, 4)))
             },
-            [b'D', r, g, b, pulse, ..] => {
-                Ok(Some((Command::Led { r, g, b, pulse: pulse != 0 }, 5)))
+            [b'D', r, g, b, pulse, pi1, pi2, pi3, pi4] => {
+                let pulse_interval_ms = u32::from_be_bytes([pi1, pi2, pi3, pi4]);
+                Ok(Some((
+                    Command::Led {
+                        r,
+                        g,
+                        b,
+                        pulse: pulse != 0,
+                        pulse_interval_ms: if pulse_interval_ms != 0 {
+                            Some(pulse_interval_ms)
+                        } else {
+                            None
+                        },
+                    },
+                    9,
+                )))
             },
             [b'E', ..] => Ok(Some((Command::Bootload, 1))),
             [header, ..] if b"ABCD".contains(&header) => Ok(None),
@@ -87,12 +101,17 @@ impl Command {
                 buf.push(target);
                 buf.try_extend_from_slice(&value.to_be_bytes()).unwrap();
             },
-            Command::Led { r, g, b, pulse } => {
+            Command::Led { r, g, b, pulse, pulse_interval_ms } => {
                 buf.push(b'D');
                 buf.push(r);
                 buf.push(g);
                 buf.push(b);
                 buf.push(u8::from(pulse));
+                if let Some(pulse_interval_ms) = pulse_interval_ms {
+                    buf.try_extend_from_slice(&pulse_interval_ms.to_be_bytes()).unwrap();
+                } else {
+                    buf.try_extend_from_slice(&[0; 4]).unwrap();
+                }
             },
             Command::Bootload => buf.push(b'E'),
         }
