@@ -9,7 +9,8 @@ pub enum Command {
     Brightness { target: u8, value: u16 },
     Temperature { target: u8, value: u16 },
     Led { r: u8, g: u8, b: u8, pulse: bool },
-    Bootload, // Restart in bootloader mode.
+    LedPulseDuration { period_ms: Option<u32> }, // if None, then default
+    Bootload,                                    // Restart in bootloader mode.
 }
 
 #[derive(Debug)]
@@ -63,6 +64,15 @@ impl Command {
                 Ok(Some((Command::Led { r, g, b, pulse: pulse != 0 }, 5)))
             },
             [b'E', ..] => Ok(Some((Command::Bootload, 1))),
+            [b'F', p1, p2, p3, p4, ..] => {
+                let value = u32::from_be_bytes([p1, p2, p3, p4]);
+                Ok(Some((
+                    Command::LedPulseDuration {
+                        period_ms: if value != 0 { Some(value) } else { None },
+                    },
+                    5,
+                )))
+            },
             [header, ..] if b"ABCD".contains(&header) => Ok(None),
             _ => Err(()),
         }
@@ -93,6 +103,10 @@ impl Command {
                 buf.push(g);
                 buf.push(b);
                 buf.push(u8::from(pulse));
+            },
+            Command::LedPulseDuration { period_ms } => {
+                buf.push(b'F');
+                buf.try_extend_from_slice(&period_ms.unwrap_or(0).to_be_bytes()).unwrap();
             },
             Command::Bootload => buf.push(b'E'),
         }
@@ -323,6 +337,7 @@ mod tests {
             Command::Temperature { target: 2, value: 100 },
             Command::Brightness { target: 10, value: 100 },
             Command::Led { r: 0, g: 128, b: 255, pulse: true },
+            Command::LedPulseDuration { period_ms: Some(4000) },
         ];
 
         for command in commands.iter() {
@@ -380,6 +395,7 @@ mod tests {
             Command::Temperature { target: 2, value: 100 },
             Command::Brightness { target: 10, value: 100 },
             Command::Led { r: 0, g: 128, b: 255, pulse: true },
+            Command::LedPulseDuration { period_ms: Some(4000) },
         ];
 
         let mut bytes: ArrayVec<[u8; MAX_SERIAL_MESSAGE_LEN]> = ArrayVec::new();
