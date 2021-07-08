@@ -1,7 +1,7 @@
 /// A cli tool to connect to a device that talks the protocol.
 use failure::{err_msg, format_err, Error};
 use panel_protocol::{
-    ArrayVec, Command, Report, ReportReader, MAX_REPORT_LEN, MAX_REPORT_QUEUE_LEN,
+    ArrayVec, Command, PulseMode, Report, ReportReader, MAX_REPORT_LEN, MAX_REPORT_QUEUE_LEN,
 };
 use serial_core::{BaudRate, SerialDevice, SerialPortSettings};
 use serial_unix::TTYPort;
@@ -72,7 +72,13 @@ fn print_usage(args: &[String]) {
     println!("  {}", ron::ser::to_string(&Command::Brightness { target: 0, value: 0 }).unwrap());
     println!(
         "  {}",
-        ron::ser::to_string(&Command::Led { r: 255, g: 0, b: 0, pulse: true }).unwrap()
+        ron::ser::to_string(&Command::Led {
+            r: 255,
+            g: 0,
+            b: 0,
+            pulse_mode: PulseMode::Breathing { interval_ms: None }
+        })
+        .unwrap()
     );
 }
 
