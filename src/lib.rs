@@ -367,6 +367,13 @@ mod tests {
             Command::Temperature { target: 2, value: 100 },
             Command::Brightness { target: 10, value: 100 },
             Command::Led { r: 0, g: 128, b: 255, pulse_mode: PulseMode::Solid },
+            Command::Led { r: 0, g: 128, b: 255, pulse_mode: PulseMode::DialTurn },
+            Command::Led {
+                r: 0,
+                g: 128,
+                b: 255,
+                pulse_mode: PulseMode::Breathing { interval_ms: NonZeroU16::new(4000).unwrap() },
+            },
         ];
 
         for command in commands.iter() {
@@ -424,16 +431,25 @@ mod tests {
             Command::Temperature { target: 2, value: 100 },
             Command::Brightness { target: 10, value: 100 },
             Command::Led { r: 0, g: 128, b: 255, pulse_mode: PulseMode::Solid },
+            Command::Led { r: 0, g: 128, b: 255, pulse_mode: PulseMode::DialTurn },
+            Command::Led {
+                r: 0,
+                g: 128,
+                b: 255,
+                pulse_mode: PulseMode::Breathing { interval_ms: NonZeroU16::new(4000).unwrap() },
+            },
         ];
 
-        let mut bytes: ArrayVec<[u8; MAX_SERIAL_MESSAGE_LEN]> = ArrayVec::new();
-        for command in commands.iter() {
-            bytes.try_extend_from_slice(&command.as_arrayvec()[..]).unwrap();
+        for command_chunk in commands.chunks(MAX_COMMAND_QUEUE_LEN) {
+            let mut bytes: ArrayVec<[u8; MAX_SERIAL_MESSAGE_LEN]> = ArrayVec::new();
+            for command in command_chunk {
+                bytes.try_extend_from_slice(&command.as_arrayvec()[..]).unwrap();
+            }
+
+            let mut protocol = CommandReader::new();
+            let command_output = protocol.process_bytes(&bytes).unwrap();
+
+            assert_eq!(&command_output[..], &command_chunk[..]);
         }
-
-        let mut protocol = CommandReader::new();
-        let command_output = protocol.process_bytes(&bytes).unwrap();
-
-        assert_eq!(&command_output[..], &commands[..]);
     }
 }
