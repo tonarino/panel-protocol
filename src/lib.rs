@@ -412,15 +412,17 @@ mod tests {
             Report::Error { code: 80 },
         ];
 
-        let mut bytes: ArrayVec<[u8; MAX_SERIAL_MESSAGE_LEN]> = ArrayVec::new();
-        for report in reports.iter() {
-            bytes.try_extend_from_slice(&report.as_arrayvec()[..]).unwrap();
-        }
-
         let mut protocol = ReportReader::new();
-        let report_output = protocol.process_bytes(&bytes).unwrap();
+        for report_chunk in reports.chunks(MAX_REPORT_QUEUE_LEN) {
+            let mut bytes: ArrayVec<[u8; MAX_SERIAL_MESSAGE_LEN]> = ArrayVec::new();
+            for report in report_chunk {
+                bytes.try_extend_from_slice(&report.as_arrayvec()[..]).unwrap();
+            }
 
-        assert_eq!(&report_output[..], &reports[..]);
+            let report_output = protocol.process_bytes(&bytes).unwrap();
+
+            assert_eq!(&report_output[..], &report_chunk[..]);
+        }
     }
 
     #[test]
@@ -440,13 +442,13 @@ mod tests {
             },
         ];
 
+        let mut protocol = CommandReader::new();
         for command_chunk in commands.chunks(MAX_COMMAND_QUEUE_LEN) {
             let mut bytes: ArrayVec<[u8; MAX_SERIAL_MESSAGE_LEN]> = ArrayVec::new();
             for command in command_chunk {
                 bytes.try_extend_from_slice(&command.as_arrayvec()[..]).unwrap();
             }
 
-            let mut protocol = CommandReader::new();
             let command_output = protocol.process_bytes(&bytes).unwrap();
 
             assert_eq!(&command_output[..], &command_chunk[..]);
