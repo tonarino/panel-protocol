@@ -1,3 +1,4 @@
+use core::num::NonZeroU16;
 /// A cli tool to connect to a device that talks the protocol.
 use failure::{err_msg, format_err, Error};
 use panel_protocol::{
@@ -76,7 +77,7 @@ fn print_usage(args: &[String]) {
             r: 255,
             g: 0,
             b: 0,
-            pulse_mode: PulseMode::Breathing { interval_ms: None }
+            pulse_mode: PulseMode::Breathing { interval_ms: NonZeroU16::new(4000u16).unwrap() }
         })
         .unwrap()
     );
