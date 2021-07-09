@@ -1,6 +1,9 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use core::convert::{TryFrom, TryInto};
+use core::{
+    convert::{TryFrom, TryInto},
+    num::NonZeroU16,
+};
 
 pub use arrayvec::{ArrayString, ArrayVec};
 
@@ -18,7 +21,7 @@ pub enum Command {
 #[cfg_attr(feature = "serde_support", derive(serde::Serialize, serde::Deserialize))]
 pub enum PulseMode {
     Solid,
-    Breathing { interval_ms: Option<u16> }, // None -> default interval
+    Breathing { interval_ms: NonZeroU16 },
     DialTurn,
 }
 
@@ -28,7 +31,7 @@ impl From<PulseMode> for [u8; 3] {
             PulseMode::Solid => [b'S', 0, 0],
             PulseMode::DialTurn => [b'D', 0, 0],
             PulseMode::Breathing { interval_ms } => {
-                let interval_bytes = interval_ms.unwrap_or(0).to_be_bytes();
+                let interval_bytes = u16::from(interval_ms).to_be_bytes();
                 [b'B', interval_bytes[0], interval_bytes[1]]
             },
         }
@@ -44,15 +47,13 @@ impl TryFrom<[u8; 3]> for PulseMode {
             [b'D', ..] => Ok(PulseMode::DialTurn),
             [b'B', msb, lsb] => {
                 let interval_value = u16::from_be_bytes([msb, lsb]);
-                Ok(PulseMode::Breathing {
-                    interval_ms: if interval_value == 0 { None } else { Some(interval_value) },
-                })
+                NonZeroU16::new(interval_value)
+                    .map_or_else(|| Err(()), |interval_ms| Ok(PulseMode::Breathing { interval_ms }))
             },
             _ => Err(()),
         }
     }
 }
-
 #[derive(Debug)]
 pub enum Error {
     BufferFull,
