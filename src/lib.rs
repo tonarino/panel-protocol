@@ -1,5 +1,10 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
+use core::{
+    convert::{TryFrom, TryInto},
+    num::NonZeroU16,
+};
+
 pub use arrayvec::{ArrayString, ArrayVec};
 
 #[derive(Debug, PartialEq)]
@@ -8,10 +13,47 @@ pub enum Command {
     PowerCycler { slot: u8, state: bool },
     Brightness { target: u8, value: u16 },
     Temperature { target: u8, value: u16 },
-    Led { r: u8, g: u8, b: u8, pulse: bool },
+    Led { r: u8, g: u8, b: u8, pulse_mode: PulseMode },
     Bootload, // Restart in bootloader mode.
 }
 
+#[derive(Debug, PartialEq, Clone, Copy)]
+#[cfg_attr(feature = "serde_support", derive(serde::Serialize, serde::Deserialize))]
+pub enum PulseMode {
+    Solid,
+    Breathing { interval_ms: NonZeroU16 },
+    DialTurn,
+}
+
+impl From<PulseMode> for [u8; 3] {
+    fn from(pulse_mode: PulseMode) -> Self {
+        match pulse_mode {
+            PulseMode::Solid => [b'S', 0, 0],
+            PulseMode::DialTurn => [b'D', 0, 0],
+            PulseMode::Breathing { interval_ms } => {
+                let interval_bytes = u16::from(interval_ms).to_be_bytes();
+                [b'B', interval_bytes[0], interval_bytes[1]]
+            },
+        }
+    }
+}
+
+impl TryFrom<[u8; 3]> for PulseMode {
+    type Error = ();
+
+    fn try_from(bytes: [u8; 3]) -> Result<Self, ()> {
+        match bytes {
+            [b'S', ..] => Ok(PulseMode::Solid),
+            [b'D', ..] => Ok(PulseMode::DialTurn),
+            [b'B', msb, lsb] => {
+                let interval_value = u16::from_be_bytes([msb, lsb]);
+                NonZeroU16::new(interval_value)
+                    .map_or_else(|| Err(()), |interval_ms| Ok(PulseMode::Breathing { interval_ms }))
+            },
+            _ => Err(()),
+        }
+    }
+}
 #[derive(Debug)]
 pub enum Error {
     BufferFull,
@@ -59,9 +101,10 @@ impl Command {
                 let value = u16::from_be_bytes([msb, lsb]);
                 Ok(Some((Command::Temperature { target, value }, 4)))
             },
-            [b'D', r, g, b, pulse, ..] => {
-                Ok(Some((Command::Led { r, g, b, pulse: pulse != 0 }, 5)))
-            },
+            [b'D', r, g, b, pulse_mode, pmsb, plsb, ..] => Ok(Some((
+                Command::Led { r, g, b, pulse_mode: [pulse_mode, pmsb, plsb].try_into()? },
+                7,
+            ))),
             [b'E', ..] => Ok(Some((Command::Bootload, 1))),
             [header, ..] if b"ABCD".contains(&header) => Ok(None),
             _ => Err(()),
@@ -87,12 +130,13 @@ impl Command {
                 buf.push(target);
                 buf.try_extend_from_slice(&value.to_be_bytes()).unwrap();
             },
-            Command::Led { r, g, b, pulse } => {
+            Command::Led { r, g, b, pulse_mode } => {
                 buf.push(b'D');
                 buf.push(r);
                 buf.push(g);
                 buf.push(b);
-                buf.push(u8::from(pulse));
+                let pulse_mode_bytes: [u8; 3] = pulse_mode.into();
+                buf.try_extend_from_slice(&pulse_mode_bytes).unwrap();
             },
             Command::Bootload => buf.push(b'E'),
         }
@@ -322,7 +366,14 @@ mod tests {
             Command::PowerCycler { slot: 20, state: false },
             Command::Temperature { target: 2, value: 100 },
             Command::Brightness { target: 10, value: 100 },
-            Command::Led { r: 0, g: 128, b: 255, pulse: true },
+            Command::Led { r: 0, g: 128, b: 255, pulse_mode: PulseMode::Solid },
+            Command::Led { r: 0, g: 128, b: 255, pulse_mode: PulseMode::DialTurn },
+            Command::Led {
+                r: 0,
+                g: 128,
+                b: 255,
+                pulse_mode: PulseMode::Breathing { interval_ms: NonZeroU16::new(4000).unwrap() },
+            },
         ];
 
         for command in commands.iter() {
@@ -361,15 +412,17 @@ mod tests {
             Report::Error { code: 80 },
         ];
 
-        let mut bytes: ArrayVec<[u8; MAX_SERIAL_MESSAGE_LEN]> = ArrayVec::new();
-        for report in reports.iter() {
-            bytes.try_extend_from_slice(&report.as_arrayvec()[..]).unwrap();
-        }
-
         let mut protocol = ReportReader::new();
-        let report_output = protocol.process_bytes(&bytes).unwrap();
+        for report_chunk in reports.chunks(MAX_REPORT_QUEUE_LEN) {
+            let mut bytes: ArrayVec<[u8; MAX_SERIAL_MESSAGE_LEN]> = ArrayVec::new();
+            for report in report_chunk {
+                bytes.try_extend_from_slice(&report.as_arrayvec()[..]).unwrap();
+            }
 
-        assert_eq!(&report_output[..], &reports[..]);
+            let report_output = protocol.process_bytes(&bytes).unwrap();
+
+            assert_eq!(&report_output[..], &report_chunk[..]);
+        }
     }
 
     #[test]
@@ -379,17 +432,26 @@ mod tests {
             Command::PowerCycler { slot: 20, state: false },
             Command::Temperature { target: 2, value: 100 },
             Command::Brightness { target: 10, value: 100 },
-            Command::Led { r: 0, g: 128, b: 255, pulse: true },
+            Command::Led { r: 0, g: 128, b: 255, pulse_mode: PulseMode::Solid },
+            Command::Led { r: 0, g: 128, b: 255, pulse_mode: PulseMode::DialTurn },
+            Command::Led {
+                r: 0,
+                g: 128,
+                b: 255,
+                pulse_mode: PulseMode::Breathing { interval_ms: NonZeroU16::new(4000).unwrap() },
+            },
         ];
 
-        let mut bytes: ArrayVec<[u8; MAX_SERIAL_MESSAGE_LEN]> = ArrayVec::new();
-        for command in commands.iter() {
-            bytes.try_extend_from_slice(&command.as_arrayvec()[..]).unwrap();
-        }
-
         let mut protocol = CommandReader::new();
-        let command_output = protocol.process_bytes(&bytes).unwrap();
+        for command_chunk in commands.chunks(MAX_COMMAND_QUEUE_LEN) {
+            let mut bytes: ArrayVec<[u8; MAX_SERIAL_MESSAGE_LEN]> = ArrayVec::new();
+            for command in command_chunk {
+                bytes.try_extend_from_slice(&command.as_arrayvec()[..]).unwrap();
+            }
 
-        assert_eq!(&command_output[..], &commands[..]);
+            let command_output = protocol.process_bytes(&bytes).unwrap();
+
+            assert_eq!(&command_output[..], &command_chunk[..]);
+        }
     }
 }
