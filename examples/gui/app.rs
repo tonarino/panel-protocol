@@ -117,9 +117,21 @@ impl epi::App for App {
             ui.vertical_centered_justified(|ui| {
                 ui.heading("Panel Configurator");
                 // RGB sliders
-                ui.add(egui::Slider::new(&mut self.led_state.r, 0..=255).text("LED Red"));
-                ui.add(egui::Slider::new(&mut self.led_state.g, 0..=255).text("LED Green"));
-                ui.add(egui::Slider::new(&mut self.led_state.b, 0..=255).text("LED Blue"));
+                ui.add(
+                    egui::Slider::new(&mut self.led_state.r, 0..=255)
+                        .text("LED Red")
+                        .clamp_to_range(true),
+                );
+                ui.add(
+                    egui::Slider::new(&mut self.led_state.g, 0..=255)
+                        .text("LED Green")
+                        .clamp_to_range(true),
+                );
+                ui.add(
+                    egui::Slider::new(&mut self.led_state.b, 0..=255)
+                        .text("LED Blue")
+                        .clamp_to_range(true),
+                );
 
                 // Pulse mode
                 egui::ComboBox::from_label("Pulse Mode")
@@ -159,7 +171,8 @@ impl epi::App for App {
                             &mut self.led_state.if_breathing_interval_ms,
                             1..=u16::MAX,
                         )
-                        .text("Breathing (half) interval (ms)"),
+                        .text("Breathing (half) interval (ms)")
+                        .clamp_to_range(true),
                     );
                     if response.changed() {
                         self.led_state.pulse_mode = PulseMode::Breathing {
