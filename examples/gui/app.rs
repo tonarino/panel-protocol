@@ -231,7 +231,7 @@ impl epi::App for App {
                     ui.separator();
                     ui.collapsing("Lighting", |ui| self.lighting_configuration_section(ui));
 
-                    // Booloader command
+                    // Bootloader command
                     ui.separator();
                     ui.collapsing("Other Commands", |ui| self.other_commands_section(ui));
 
