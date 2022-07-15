@@ -194,7 +194,7 @@ impl Report {
             },
             [b'D', len, ref message @ ..] if message.len() as u8 == len => Ok(Some((
                 Report::Debug {
-                    message: ArrayString::from(&core::str::from_utf8(message).unwrap()).unwrap(),
+                    message: ArrayString::from(core::str::from_utf8(message).unwrap()).unwrap(),
                 },
                 2 + message.len(),
             ))),
@@ -263,7 +263,7 @@ where
         where
             E: serde::de::Error,
         {
-            Ok(DebugMessage::from(value).map_err(serde::de::Error::custom)?)
+            DebugMessage::from(value).map_err(serde::de::Error::custom)
         }
     }
 
@@ -421,7 +421,7 @@ mod tests {
 
             let report_output = protocol.process_bytes(&bytes).unwrap();
 
-            assert_eq!(&report_output[..], &report_chunk[..]);
+            assert_eq!(&report_output[..], report_chunk);
         }
     }
 
@@ -451,7 +451,7 @@ mod tests {
 
             let command_output = protocol.process_bytes(&bytes).unwrap();
 
-            assert_eq!(&command_output[..], &command_chunk[..]);
+            assert_eq!(&command_output[..], command_chunk);
         }
     }
 }
