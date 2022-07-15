@@ -207,8 +207,8 @@ impl epi::App for App {
     }
 
     fn update(&mut self, ctx: &egui::CtxRef, _frame: &mut epi::Frame<'_>) {
-        let current_led_state = self.led_state.clone();
-        let current_light_state = self.light_state.clone();
+        let current_led_state = self.led_state;
+        let current_light_state = self.light_state;
         egui::CentralPanel::default().show(ctx, |ui| {
             if let Ok(report) = self.report_rx.try_recv() {
                 self.last_recv_reports.push_back(report);
