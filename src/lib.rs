@@ -39,18 +39,20 @@ impl From<PulseMode> for [u8; 3] {
 }
 
 impl TryFrom<[u8; 3]> for PulseMode {
-    type Error = ();
+    type Error = Error;
 
-    fn try_from(bytes: [u8; 3]) -> Result<Self, ()> {
+    fn try_from(bytes: [u8; 3]) -> Result<Self, Error> {
         match bytes {
             [b'S', ..] => Ok(PulseMode::Solid),
             [b'D', ..] => Ok(PulseMode::DialTurn),
             [b'B', msb, lsb] => {
                 let interval_value = u16::from_be_bytes([msb, lsb]);
-                NonZeroU16::new(interval_value)
-                    .map_or_else(|| Err(()), |interval_ms| Ok(PulseMode::Breathing { interval_ms }))
+                NonZeroU16::new(interval_value).map_or_else(
+                    || Err(Error::MalformedMessage),
+                    |interval_ms| Ok(PulseMode::Breathing { interval_ms }),
+                )
             },
-            _ => Err(()),
+            _ => Err(Error::MalformedMessage),
         }
     }
 }
@@ -83,7 +85,7 @@ pub const MAX_REPORT_QUEUE_LEN: usize = 6;
 pub const MAX_COMMAND_QUEUE_LEN: usize = 6;
 
 impl Command {
-    pub fn try_from(buf: &[u8]) -> Result<Option<(Command, usize)>, ()> {
+    pub fn try_from(buf: &[u8]) -> Result<Option<(Command, usize)>, Error> {
         if buf.is_empty() {
             return Ok(None);
         }
@@ -107,7 +109,7 @@ impl Command {
             ))),
             [b'E', ..] => Ok(Some((Command::Bootload, 1))),
             [header, ..] if b"ABCD".contains(&header) => Ok(None),
-            _ => Err(()),
+            _ => Err(Error::MalformedMessage),
         }
     }
 
@@ -173,7 +175,7 @@ pub enum Report {
 }
 
 impl Report {
-    pub fn try_from(buf: &[u8]) -> Result<Option<(Report, usize)>, ()> {
+    pub fn try_from(buf: &[u8]) -> Result<Option<(Report, usize)>, Error> {
         if buf.is_empty() {
             return Ok(None);
         }
@@ -199,7 +201,7 @@ impl Report {
                 2 + message.len(),
             ))),
             [header, ..] if b"VED".contains(&header) => Ok(None),
-            _ => Err(()),
+            _ => Err(Error::MalformedMessage),
         }
     }
 
