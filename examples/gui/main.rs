@@ -14,10 +14,10 @@ mod panel;
 
 fn print_usage(args: &[String]) {
     println!("Usage: {} <tty_port>", args[0]);
-    println!("");
+    println!();
     println!("The program initiates a serial connection with the device specified by the ");
     println!("tty_port, and prints every Report that comes in");
-    println!("");
+    println!();
 }
 
 fn main() -> Result<()> {
@@ -34,7 +34,7 @@ fn main() -> Result<()> {
     let should_exit = Arc::new(AtomicBool::new(false));
     thread::spawn({
         let mut panel = panel::Panel::new(port)?;
-        let should_exit = should_exit.clone();
+        let should_exit = should_exit;
         move || loop {
             match panel.poll() {
                 Ok(reports) => {

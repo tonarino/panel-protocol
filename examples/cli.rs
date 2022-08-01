@@ -64,11 +64,11 @@ impl Panel {
 
 fn print_usage(args: &[String]) {
     println!("Usage: {} <tty_port>", args[0]);
-    println!("");
+    println!();
     println!("The program initiates a serial connection with the device specified by the ");
     println!("tty_port, and prints every Report that comes in. You can also type or pipe ");
     println!("a Command in the RON format to send it to the device.");
-    println!("");
+    println!();
     println!("Example commands:");
     println!("  {}", ron::ser::to_string(&Command::Brightness { target: 0, value: 0 }).unwrap());
     println!(
