@@ -14,6 +14,7 @@ pub enum Command {
     Brightness { target: u8, value: u16 },
     Temperature { target: u8, value: u16 },
     Led { r: u8, g: u8, b: u8, pulse_mode: PulseMode },
+    FanSpeed { target: u8, value: u16 },
     Bootload, // Restart in bootloader mode.
 }
 
@@ -108,6 +109,10 @@ impl Command {
                 7,
             ))),
             [b'E', ..] => Ok(Some((Command::Bootload, 1))),
+            [b'F', target, msb, lsb, ..] => {
+                let value = u16::from_be_bytes([msb, lsb]);
+                Ok(Some((Command::FanSpeed { target, value }, 4)))
+            },
             [header, ..] if b"ABCD".contains(&header) => Ok(None),
             _ => Err(Error::MalformedMessage),
         }
@@ -141,6 +146,11 @@ impl Command {
                 buf.try_extend_from_slice(&pulse_mode_bytes).unwrap();
             },
             Command::Bootload => buf.push(b'E'),
+            Command::FanSpeed { target, value } => {
+                buf.push(b'F');
+                buf.push(target);
+                buf.try_extend_from_slice(&value.to_be_bytes()).unwrap();
+            },
         }
         buf
     }
@@ -368,6 +378,7 @@ mod tests {
             Command::PowerCycler { slot: 20, state: false },
             Command::Temperature { target: 2, value: 100 },
             Command::Brightness { target: 10, value: 100 },
+            Command::FanSpeed { target: 1, value: 600 },
             Command::Led { r: 0, g: 128, b: 255, pulse_mode: PulseMode::Solid },
             Command::Led { r: 0, g: 128, b: 255, pulse_mode: PulseMode::DialTurn },
             Command::Led {
