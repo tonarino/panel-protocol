@@ -299,20 +299,32 @@ impl ReportReader {
 
         let mut output = ArrayVec::new();
 
+        let mut vec: Vec<Report> = Vec::default();
+
         loop {
             match Report::try_from(&self.buf[..]) {
                 Ok(Some((report, bytes_read))) => {
                     self.buf.drain(0..bytes_read);
-                    if output.len() < MAX_REPORT_QUEUE_LEN {
-                        output.push(report);
-                    } else {
-                        return Err(Error::ReportQueueFull);
-                    }
+                    vec.push(report);
+
+                    // if output.len() < MAX_REPORT_QUEUE_LEN {
+                    //     output.push(report);
+                    // } else {
+                    //     return Err(Error::ReportQueueFull);
+                    // }
                 },
                 Err(_) => return Err(Error::MalformedMessage),
                 Ok(None) => break,
             }
         }
+
+        if vec.len() > MAX_REPORT_QUEUE_LEN {
+            println!("we have {} more messages than expected", vec.len() - MAX_REPORT_QUEUE_LEN)
+        }
+
+        vec.drain(0..output.len()).for_each(|report| {
+            output.push(report);
+        });
 
         Ok(output)
     }
