@@ -1,6 +1,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use core::{
+    cmp::min,
     convert::{TryFrom, TryInto},
     num::NonZeroU16,
 };
@@ -322,7 +323,7 @@ impl ReportReader {
             println!("we have {} more messages than expected", vec.len() - MAX_REPORT_QUEUE_LEN)
         }
 
-        vec.drain(0..MAX_REPORT_QUEUE_LEN).for_each(|report| {
+        vec.drain(0..(min(MAX_REPORT_QUEUE_LEN, vec.len()))).for_each(|report| {
             output.push(report);
         });
 
