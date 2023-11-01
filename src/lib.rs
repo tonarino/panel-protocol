@@ -322,7 +322,7 @@ impl ReportReader {
             println!("we have {} more messages than expected", vec.len() - MAX_REPORT_QUEUE_LEN)
         }
 
-        vec.drain(0..output.len()).for_each(|report| {
+        vec.drain(0..MAX_REPORT_QUEUE_LEN).for_each(|report| {
             output.push(report);
         });
 
