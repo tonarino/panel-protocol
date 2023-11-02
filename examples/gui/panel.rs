@@ -1,7 +1,5 @@
 use anyhow::{format_err, Error, Result};
-use panel_protocol::{
-    ArrayVec, Command, Report, ReportReader, MAX_REPORT_LEN, MAX_REPORT_QUEUE_LEN,
-};
+use panel_protocol::{ArrayVec, Command, Report, ReportReader, MAX_REPORT_LEN};
 use serial_core::{BaudRate, SerialDevice, SerialPortSettings};
 use serial_unix::TTYPort;
 use std::{
@@ -10,6 +8,8 @@ use std::{
     path::PathBuf,
     time::Duration,
 };
+
+const REPORT_QUEUE_SIZE: usize = 6;
 
 static TTY_TIMEOUT: Duration = Duration::from_millis(500);
 
@@ -36,7 +36,7 @@ impl Panel {
         Ok(Self { tty, protocol, read_buf })
     }
 
-    pub fn poll(&mut self) -> Result<ArrayVec<[Report; MAX_REPORT_QUEUE_LEN]>, Error> {
+    pub fn poll(&mut self) -> Result<ArrayVec<Report, REPORT_QUEUE_SIZE>, Error> {
         match self.tty.read(&mut self.read_buf) {
             Ok(0) => Err(format_err!("End of file reached")),
             Ok(count) => self
