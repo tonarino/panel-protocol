@@ -70,7 +70,7 @@ fn print_usage(args: &[String]) {
     println!("a Command in the RON format to send it to the device.");
     println!();
     println!("Example commands:");
-    println!("  {}", ron::ser::to_string(&Command::Brightness { target: 0, value: 0 }).unwrap());
+    println!("  {}", ron::ser::to_string(&Command::Pwm { target: 0, value: 0 }).unwrap());
     println!(
         "  {}",
         ron::ser::to_string(&Command::Led {

@@ -255,9 +255,7 @@ impl epi::App for App {
         if self.light_state != current_light_state {
             for (target, state) in self.light_state.iter().enumerate() {
                 let target = target as u8;
-                self.command_tx
-                    .send(Command::Brightness { target, value: state.brightness })
-                    .unwrap();
+                self.command_tx.send(Command::Pwm { target, value: state.brightness }).unwrap();
                 self.command_tx
                     .send(Command::Temperature { target, value: state.temperature })
                     .unwrap();
