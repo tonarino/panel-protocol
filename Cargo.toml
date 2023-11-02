@@ -12,7 +12,7 @@ std = []
 serde_support = ["serde", "std"]
 
 [dependencies]
-arrayvec = { version = "0.5", default-features = false, features = ["array-sizes-129-255"] }
+arrayvec = { version = "0.7", default-features = false }
 serde = { version = "1.0", optional = true }
 
 [[example]]

@@ -118,7 +118,7 @@ impl Command {
         }
     }
 
-    pub fn as_arrayvec(&self) -> ArrayVec<[u8; MAX_COMMAND_LEN]> {
+    pub fn as_arrayvec(&self) -> ArrayVec<u8, MAX_COMMAND_LEN> {
         let mut buf = ArrayVec::new();
 
         match *self {
@@ -156,7 +156,7 @@ impl Command {
     }
 }
 
-type DebugMessage = ArrayString<[u8; MAX_DEBUG_MSG_LEN]>;
+type DebugMessage = ArrayString<MAX_DEBUG_MSG_LEN>;
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, PartialEq)]
@@ -215,7 +215,7 @@ impl Report {
         }
     }
 
-    pub fn as_arrayvec(&self) -> ArrayVec<[u8; MAX_REPORT_LEN]> {
+    pub fn as_arrayvec(&self) -> ArrayVec<u8, MAX_REPORT_LEN> {
         let mut buf = ArrayVec::new();
 
         match *self {
@@ -283,7 +283,7 @@ where
 }
 
 pub struct ReportReader {
-    pub buf: ArrayVec<[u8; MAX_SERIAL_MESSAGE_LEN]>,
+    pub buf: ArrayVec<u8, MAX_SERIAL_MESSAGE_LEN>,
 }
 
 impl ReportReader {
@@ -294,7 +294,7 @@ impl ReportReader {
     pub fn process_bytes(
         &mut self,
         bytes: &[u8],
-    ) -> Result<ArrayVec<[Report; MAX_REPORT_QUEUE_LEN]>, Error> {
+    ) -> Result<ArrayVec<Report, MAX_REPORT_QUEUE_LEN>, Error> {
         self.buf.try_extend_from_slice(bytes).map_err(|_| Error::BufferFull)?;
 
         let mut output = ArrayVec::new();
@@ -325,7 +325,7 @@ impl Default for ReportReader {
 }
 
 pub struct CommandReader {
-    buf: ArrayVec<[u8; MAX_SERIAL_MESSAGE_LEN]>,
+    buf: ArrayVec<u8, MAX_SERIAL_MESSAGE_LEN>,
 }
 
 impl CommandReader {
@@ -336,7 +336,7 @@ impl CommandReader {
     pub fn process_bytes(
         &mut self,
         bytes: &[u8],
-    ) -> Result<ArrayVec<[Command; MAX_COMMAND_QUEUE_LEN]>, Error> {
+    ) -> Result<ArrayVec<Command, MAX_COMMAND_QUEUE_LEN>, Error> {
         self.buf.try_extend_from_slice(bytes).map_err(|_| Error::BufferFull)?;
 
         let mut output = ArrayVec::new();
@@ -427,7 +427,7 @@ mod tests {
 
         let mut protocol = ReportReader::new();
         for report_chunk in reports.chunks(MAX_REPORT_QUEUE_LEN) {
-            let mut bytes: ArrayVec<[u8; MAX_SERIAL_MESSAGE_LEN]> = ArrayVec::new();
+            let mut bytes: ArrayVec<u8, MAX_SERIAL_MESSAGE_LEN> = ArrayVec::new();
             for report in report_chunk {
                 bytes.try_extend_from_slice(&report.as_arrayvec()[..]).unwrap();
             }
@@ -457,7 +457,7 @@ mod tests {
 
         let mut protocol = CommandReader::new();
         for command_chunk in commands.chunks(MAX_COMMAND_QUEUE_LEN) {
-            let mut bytes: ArrayVec<[u8; MAX_SERIAL_MESSAGE_LEN]> = ArrayVec::new();
+            let mut bytes: ArrayVec<u8, MAX_SERIAL_MESSAGE_LEN> = ArrayVec::new();
             for command in command_chunk {
                 bytes.try_extend_from_slice(&command.as_arrayvec()[..]).unwrap();
             }

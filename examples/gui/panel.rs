@@ -36,7 +36,7 @@ impl Panel {
         Ok(Self { tty, protocol, read_buf })
     }
 
-    pub fn poll(&mut self) -> Result<ArrayVec<[Report; MAX_REPORT_QUEUE_LEN]>, Error> {
+    pub fn poll(&mut self) -> Result<ArrayVec<Report, MAX_REPORT_QUEUE_LEN>, Error> {
         match self.tty.read(&mut self.read_buf) {
             Ok(0) => Err(format_err!("End of file reached")),
             Ok(count) => self
