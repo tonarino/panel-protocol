@@ -1,9 +1,7 @@
 use core::num::NonZeroU16;
 /// A cli tool to connect to a device that talks the protocol.
 use failure::{err_msg, format_err, Error};
-use panel_protocol::{
-    ArrayVec, Command, PulseMode, Report, ReportReader, MAX_REPORT_LEN, MAX_REPORT_QUEUE_LEN,
-};
+use panel_protocol::{ArrayVec, Command, PulseMode, Report, ReportReader, MAX_REPORT_LEN};
 use serial_core::{BaudRate, SerialDevice, SerialPortSettings};
 use serial_unix::TTYPort;
 use std::{
@@ -43,7 +41,7 @@ impl Panel {
         Ok(Self { tty, protocol, read_buf })
     }
 
-    fn poll(&mut self) -> Result<ArrayVec<[Report; MAX_REPORT_QUEUE_LEN]>, Error> {
+    fn poll(&mut self) -> Result<ArrayVec<Report, MAX_REPORT_LEN>, Error> {
         match self.tty.read(&mut self.read_buf) {
             Ok(0) => Err(err_msg("End of file reached")),
             Ok(count) => self
