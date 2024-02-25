@@ -34,7 +34,7 @@ fn main() -> Result<()> {
     let should_exit = Arc::new(AtomicBool::new(false));
     thread::spawn({
         let mut panel = panel::Panel::new(port)?;
-        let should_exit = should_exit;
+
         move || loop {
             match panel.poll() {
                 Ok(reports) => {
