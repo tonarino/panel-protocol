@@ -124,6 +124,10 @@ fn main() {
         if let Err(e) = stdin.read_line(&mut line) {
             panic!("Failed to read line: {}", e);
         }
+        if line.is_empty() {
+            // Exit when EOF is reached.
+            break;
+        }
 
         match ron::de::from_str(&line) {
             Ok(command) => match panel.lock().unwrap().send(&command) {
