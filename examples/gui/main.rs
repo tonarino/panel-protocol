@@ -44,7 +44,7 @@ fn main() -> Result<()> {
                     }
                 },
                 Err(e) => {
-                    eprintln!("Failed to poll reports: {}", e);
+                    eprintln!("Failed to poll reports: {e}");
                     should_exit.store(true, Ordering::SeqCst);
                     return;
                 },
