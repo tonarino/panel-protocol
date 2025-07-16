@@ -92,7 +92,7 @@ fn main() {
     let panel = match Panel::new(port) {
         Ok(panel) => Arc::new(Mutex::new(panel)),
         Err(e) => {
-            println!("Failed to open TTY port {}: {}", port, e);
+            println!("Failed to open TTY port {port}: {e}");
             return;
         },
     };
@@ -105,11 +105,11 @@ fn main() {
             match panel.lock().unwrap().poll() {
                 Ok(reports) => {
                     for report in reports {
-                        println!("New serial message: {:?}", report);
+                        println!("New serial message: {report:?}");
                     }
                 },
                 Err(e) => {
-                    println!("Failed to poll reports: {}", e);
+                    println!("Failed to poll reports: {e}");
                     should_exit.store(true, Ordering::SeqCst);
                     return;
                 },

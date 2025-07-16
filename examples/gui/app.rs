@@ -162,7 +162,7 @@ impl App {
             let commands_strings = self
                 .last_recv_reports
                 .iter()
-                .map(|report| format!("New serial message received: {:?}", report))
+                .map(|report| format!("New serial message received: {report:?}"))
                 .collect::<Vec<_>>();
             ui.add(egui::Label::new(commands_strings.join("\n")).code())
         });
@@ -238,7 +238,7 @@ impl epi::App for App {
                     // Show last few commands
                     ui.separator();
                     ui.collapsing(
-                        format!("Serial Monitor (last {} messages)", SHOW_LAST_COMMAND_NUM),
+                        format!("Serial Monitor (last {SHOW_LAST_COMMAND_NUM} messages)"),
                         |ui| self.serial_monitor_section(ui),
                     );
 
