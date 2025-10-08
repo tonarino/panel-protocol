@@ -110,7 +110,7 @@ impl Command {
                 let value = u16::from_be_bytes([msb, lsb]);
                 Ok(Some((Command::FanSpeed { target, value }, 4)))
             },
-            [header, ..] if b"BCD".contains(&header) => Ok(None),
+            [header, ..] if b"BCDF".contains(&header) => Ok(None),
             _ => Err(Error::MalformedMessage),
         }
     }
