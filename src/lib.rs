@@ -10,7 +10,6 @@ pub use arrayvec::ArrayVec;
 #[derive(Debug, PartialEq)]
 #[cfg_attr(feature = "serde_support", derive(serde::Serialize, serde::Deserialize))]
 pub enum Command {
-    PowerCycler { slot: u8, state: bool },
     Brightness { target: u8, value: u16 },
     Temperature { target: u8, value: u16 },
     Led { r: u8, g: u8, b: u8, pulse_mode: PulseMode },
@@ -91,9 +90,6 @@ impl Command {
 
         match *buf {
             [] => Ok(None),
-            [b'A', slot, state, ..] => {
-                Ok(Some((Command::PowerCycler { slot, state: state != 0 }, 3)))
-            },
             [b'B', target, msb, lsb, ..] => {
                 let value = u16::from_be_bytes([msb, lsb]);
                 Ok(Some((Command::Brightness { target, value }, 4)))
@@ -111,7 +107,7 @@ impl Command {
                 let value = u16::from_be_bytes([msb, lsb]);
                 Ok(Some((Command::FanSpeed { target, value }, 4)))
             },
-            [header, ..] if b"ABCD".contains(&header) => Ok(None),
+            [header, ..] if b"BCD".contains(&header) => Ok(None),
             _ => Err(Error::MalformedMessage),
         }
     }
@@ -120,11 +116,6 @@ impl Command {
         let mut buf = ArrayVec::new();
 
         match *self {
-            Command::PowerCycler { slot, state } => {
-                buf.push(b'A');
-                buf.push(slot);
-                buf.push(u8::from(state));
-            },
             Command::Brightness { target, value } => {
                 buf.push(b'B');
                 buf.push(target);
@@ -294,8 +285,6 @@ mod tests {
     #[test]
     fn command_roundtrips_arrayvec() {
         let commands = [
-            Command::PowerCycler { slot: 1, state: true },
-            Command::PowerCycler { slot: 20, state: false },
             Command::Temperature { target: 2, value: 100 },
             Command::Brightness { target: 10, value: 100 },
             Command::FanSpeed { target: 1, value: 600 },
@@ -351,8 +340,6 @@ mod tests {
         const COMMAND_QUEUE_SIZE: usize = 6;
 
         let commands = [
-            Command::PowerCycler { slot: 1, state: true },
-            Command::PowerCycler { slot: 20, state: false },
             Command::Temperature { target: 2, value: 100 },
             Command::Brightness { target: 10, value: 100 },
             Command::Led { r: 0, g: 128, b: 255, pulse_mode: PulseMode::Solid },
