@@ -158,7 +158,6 @@ impl Command {
 #[derive(Debug, PartialEq)]
 #[cfg_attr(feature = "serde_support", derive(serde::Serialize, serde::Deserialize))]
 pub enum Report {
-    Heartbeat,
     DialValue { diff: i8 },
     Press,
     Release,
@@ -172,7 +171,6 @@ impl Report {
 
         match *buf {
             [] => Ok(None),
-            [b'H', ..] => Ok(Some((Report::Heartbeat, 1))),
             [b'V', diff, ..] => {
                 let diff = i8::from_be_bytes([diff]);
                 Ok(Some((Report::DialValue { diff }, 2)))
@@ -189,9 +187,6 @@ impl Report {
         let mut buf = ArrayVec::new();
 
         match *self {
-            Report::Heartbeat => {
-                buf.push(b'H');
-            },
             Report::DialValue { diff } => {
                 buf.push(b'V');
                 buf.try_extend_from_slice(&diff.to_be_bytes()).unwrap();
@@ -336,8 +331,7 @@ mod tests {
     fn report_protocol_parse() {
         const REPORT_QUEUE_SIZE: usize = 6;
 
-        let reports =
-            [Report::Heartbeat, Report::Press, Report::Release, Report::DialValue { diff: 100 }];
+        let reports = [Report::Press, Report::Release, Report::DialValue { diff: 100 }];
 
         let mut protocol = ReportReader::new();
         for report_chunk in reports.chunks(REPORT_QUEUE_SIZE) {
