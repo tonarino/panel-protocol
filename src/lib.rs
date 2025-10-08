@@ -5,12 +5,11 @@ use core::{
     num::NonZeroU16,
 };
 
-pub use arrayvec::{ArrayString, ArrayVec};
+pub use arrayvec::ArrayVec;
 
 #[derive(Debug, PartialEq)]
 #[cfg_attr(feature = "serde_support", derive(serde::Serialize, serde::Deserialize))]
 pub enum Command {
-    PowerCycler { slot: u8, state: bool },
     Brightness { target: u8, value: u16 },
     Temperature { target: u8, value: u16 },
     Led { r: u8, g: u8, b: u8, pulse_mode: PulseMode },
@@ -91,9 +90,6 @@ impl Command {
 
         match *buf {
             [] => Ok(None),
-            [b'A', slot, state, ..] => {
-                Ok(Some((Command::PowerCycler { slot, state: state != 0 }, 3)))
-            },
             [b'B', target, msb, lsb, ..] => {
                 let value = u16::from_be_bytes([msb, lsb]);
                 Ok(Some((Command::Brightness { target, value }, 4)))
@@ -111,7 +107,7 @@ impl Command {
                 let value = u16::from_be_bytes([msb, lsb]);
                 Ok(Some((Command::FanSpeed { target, value }, 4)))
             },
-            [header, ..] if b"ABCD".contains(&header) => Ok(None),
+            [header, ..] if b"BCD".contains(&header) => Ok(None),
             _ => Err(Error::MalformedMessage),
         }
     }
@@ -120,11 +116,6 @@ impl Command {
         let mut buf = ArrayVec::new();
 
         match *self {
-            Command::PowerCycler { slot, state } => {
-                buf.push(b'A');
-                buf.push(slot);
-                buf.push(u8::from(state));
-            },
             Command::Brightness { target, value } => {
                 buf.push(b'B');
                 buf.push(target);
@@ -154,32 +145,13 @@ impl Command {
     }
 }
 
-type DebugMessage = ArrayString<MAX_DEBUG_MSG_LEN>;
-
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, PartialEq)]
 #[cfg_attr(feature = "serde_support", derive(serde::Serialize, serde::Deserialize))]
 pub enum Report {
-    Heartbeat,
-    DialValue {
-        diff: i8,
-    },
+    DialValue { diff: i8 },
     Press,
     Release,
-    EmergencyOff,
-    Error {
-        code: u16,
-    },
-    Debug {
-        #[cfg_attr(
-            feature = "serde_support",
-            serde(
-                serialize_with = "serialize_debug_message",
-                deserialize_with = "deserialize_debug_message"
-            )
-        )]
-        message: DebugMessage,
-    },
 }
 
 impl Report {
@@ -190,25 +162,14 @@ impl Report {
 
         match *buf {
             [] => Ok(None),
-            [b'H', ..] => Ok(Some((Report::Heartbeat, 1))),
             [b'V', diff, ..] => {
                 let diff = i8::from_be_bytes([diff]);
                 Ok(Some((Report::DialValue { diff }, 2)))
             },
+            [b'V'] => Ok(None),
             [b'P', ..] => Ok(Some((Report::Press, 1))),
             [b'R', ..] => Ok(Some((Report::Release, 1))),
-            [b'X', ..] => Ok(Some((Report::EmergencyOff, 1))),
-            [b'E', msb, lsb, ..] => {
-                let code = u16::from_be_bytes([msb, lsb]);
-                Ok(Some((Report::Error { code }, 3)))
-            },
-            [b'D', len, ref message @ ..] if message.len() as u8 == len => Ok(Some((
-                Report::Debug {
-                    message: ArrayString::from(core::str::from_utf8(message).unwrap()).unwrap(),
-                },
-                2 + message.len(),
-            ))),
-            [header, ..] if b"VED".contains(&header) => Ok(None),
+
             _ => Err(Error::MalformedMessage),
         }
     }
@@ -217,9 +178,6 @@ impl Report {
         let mut buf = ArrayVec::new();
 
         match *self {
-            Report::Heartbeat => {
-                buf.push(b'H');
-            },
             Report::DialValue { diff } => {
                 buf.push(b'V');
                 buf.try_extend_from_slice(&diff.to_be_bytes()).unwrap();
@@ -230,54 +188,9 @@ impl Report {
             Report::Release => {
                 buf.push(b'R');
             },
-            Report::EmergencyOff => {
-                buf.push(b'X');
-            },
-            Report::Error { code } => {
-                buf.push(b'E');
-                buf.try_extend_from_slice(&code.to_be_bytes()).unwrap();
-            },
-            Report::Debug { ref message } => {
-                buf.push(b'D');
-                buf.push(message.len() as u8);
-                buf.try_extend_from_slice(message.as_bytes()).unwrap();
-            },
         }
         buf
     }
-}
-
-#[cfg(feature = "serde_support")]
-fn serialize_debug_message<S>(value: &DebugMessage, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    serializer.serialize_str(value.as_str())
-}
-
-#[cfg(feature = "serde_support")]
-fn deserialize_debug_message<'de, D>(deserializer: D) -> Result<DebugMessage, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    struct DebugMessageVisitor(std::marker::PhantomData<DebugMessage>);
-
-    impl<'de> serde::de::Visitor<'de> for DebugMessageVisitor {
-        type Value = DebugMessage;
-
-        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-            formatter.write_str("string")
-        }
-
-        fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
-        where
-            E: serde::de::Error,
-        {
-            DebugMessage::from(value).map_err(serde::de::Error::custom)
-        }
-    }
-
-    deserializer.deserialize_any(DebugMessageVisitor(std::marker::PhantomData))
 }
 
 pub struct ReportReader {
@@ -372,8 +285,6 @@ mod tests {
     #[test]
     fn command_roundtrips_arrayvec() {
         let commands = [
-            Command::PowerCycler { slot: 1, state: true },
-            Command::PowerCycler { slot: 20, state: false },
             Command::Temperature { target: 2, value: 100 },
             Command::Brightness { target: 10, value: 100 },
             Command::FanSpeed { target: 1, value: 600 },
@@ -396,14 +307,7 @@ mod tests {
 
     #[test]
     fn report_roundtrips_arrayvec() {
-        let reports = [
-            Report::Press,
-            Report::Release,
-            Report::DialValue { diff: 100 },
-            Report::EmergencyOff,
-            Report::Error { code: 80 },
-            Report::Debug { message: ArrayString::from("the frequency is 1000000000Hz").unwrap() },
-        ];
+        let reports = [Report::Press, Report::Release, Report::DialValue { diff: 100 }];
 
         for report in reports.iter() {
             let (deserialized, _len) =
@@ -416,14 +320,7 @@ mod tests {
     fn report_protocol_parse() {
         const REPORT_QUEUE_SIZE: usize = 6;
 
-        let reports = [
-            Report::Heartbeat,
-            Report::Press,
-            Report::Release,
-            Report::DialValue { diff: 100 },
-            Report::EmergencyOff,
-            Report::Error { code: 80 },
-        ];
+        let reports = [Report::Press, Report::Release, Report::DialValue { diff: 100 }];
 
         let mut protocol = ReportReader::new();
         for report_chunk in reports.chunks(REPORT_QUEUE_SIZE) {
@@ -443,8 +340,6 @@ mod tests {
         const COMMAND_QUEUE_SIZE: usize = 6;
 
         let commands = [
-            Command::PowerCycler { slot: 1, state: true },
-            Command::PowerCycler { slot: 20, state: false },
             Command::Temperature { target: 2, value: 100 },
             Command::Brightness { target: 10, value: 100 },
             Command::Led { r: 0, g: 128, b: 255, pulse_mode: PulseMode::Solid },
