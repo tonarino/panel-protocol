@@ -5,7 +5,7 @@ use core::{
     num::NonZeroU16,
 };
 
-pub use arrayvec::{ArrayString, ArrayVec};
+pub use arrayvec::ArrayVec;
 
 #[derive(Debug, PartialEq)]
 #[cfg_attr(feature = "serde_support", derive(serde::Serialize, serde::Deserialize))]
@@ -154,32 +154,16 @@ impl Command {
     }
 }
 
-type DebugMessage = ArrayString<MAX_DEBUG_MSG_LEN>;
-
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, PartialEq)]
 #[cfg_attr(feature = "serde_support", derive(serde::Serialize, serde::Deserialize))]
 pub enum Report {
     Heartbeat,
-    DialValue {
-        diff: i8,
-    },
+    DialValue { diff: i8 },
     Press,
     Release,
     EmergencyOff,
-    Error {
-        code: u16,
-    },
-    Debug {
-        #[cfg_attr(
-            feature = "serde_support",
-            serde(
-                serialize_with = "serialize_debug_message",
-                deserialize_with = "deserialize_debug_message"
-            )
-        )]
-        message: DebugMessage,
-    },
+    Error { code: u16 },
 }
 
 impl Report {
@@ -202,13 +186,7 @@ impl Report {
                 let code = u16::from_be_bytes([msb, lsb]);
                 Ok(Some((Report::Error { code }, 3)))
             },
-            [b'D', len, ref message @ ..] if message.len() as u8 == len => Ok(Some((
-                Report::Debug {
-                    message: ArrayString::from(core::str::from_utf8(message).unwrap()).unwrap(),
-                },
-                2 + message.len(),
-            ))),
-            [header, ..] if b"VED".contains(&header) => Ok(None),
+            [header, ..] if b"VE".contains(&header) => Ok(None),
             _ => Err(Error::MalformedMessage),
         }
     }
@@ -237,47 +215,9 @@ impl Report {
                 buf.push(b'E');
                 buf.try_extend_from_slice(&code.to_be_bytes()).unwrap();
             },
-            Report::Debug { ref message } => {
-                buf.push(b'D');
-                buf.push(message.len() as u8);
-                buf.try_extend_from_slice(message.as_bytes()).unwrap();
-            },
         }
         buf
     }
-}
-
-#[cfg(feature = "serde_support")]
-fn serialize_debug_message<S>(value: &DebugMessage, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    serializer.serialize_str(value.as_str())
-}
-
-#[cfg(feature = "serde_support")]
-fn deserialize_debug_message<'de, D>(deserializer: D) -> Result<DebugMessage, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    struct DebugMessageVisitor(std::marker::PhantomData<DebugMessage>);
-
-    impl<'de> serde::de::Visitor<'de> for DebugMessageVisitor {
-        type Value = DebugMessage;
-
-        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-            formatter.write_str("string")
-        }
-
-        fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
-        where
-            E: serde::de::Error,
-        {
-            DebugMessage::from(value).map_err(serde::de::Error::custom)
-        }
-    }
-
-    deserializer.deserialize_any(DebugMessageVisitor(std::marker::PhantomData))
 }
 
 pub struct ReportReader {
@@ -402,7 +342,6 @@ mod tests {
             Report::DialValue { diff: 100 },
             Report::EmergencyOff,
             Report::Error { code: 80 },
-            Report::Debug { message: ArrayString::from("the frequency is 1000000000Hz").unwrap() },
         ];
 
         for report in reports.iter() {
