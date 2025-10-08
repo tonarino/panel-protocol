@@ -303,9 +303,19 @@ mod tests {
         ];
 
         for command in commands.iter() {
-            let (deserialized, _len) =
-                Command::try_from(&command.as_arrayvec()[..]).unwrap().unwrap();
-            assert_eq!(command, &deserialized);
+            let serialized = command.as_arrayvec();
+
+            for len in 0..serialized.len() {
+                let res = Command::try_from(&serialized[0..len]).unwrap();
+
+                if len < serialized.len() {
+                    // Must return None until we receive the full command.
+                    assert!(res.is_none())
+                } else {
+                    // After we receive the command in full, it successfully parses.
+                    assert!(res.is_some_and(|(parsed_command, _)| parsed_command == *command));
+                }
+            }
         }
     }
 
@@ -314,9 +324,19 @@ mod tests {
         let reports = [Report::Press, Report::Release, Report::DialValue { diff: 100 }];
 
         for report in reports.iter() {
-            let (deserialized, _len) =
-                Report::try_from(&report.as_arrayvec()[..]).unwrap().unwrap();
-            assert_eq!(report, &deserialized);
+            let serialized = report.as_arrayvec();
+
+            for len in 0..serialized.len() {
+                let res = Report::try_from(&serialized[0..len]).unwrap();
+
+                if len < serialized.len() {
+                    // Must return None until we receive the full report.
+                    assert!(res.is_none())
+                } else {
+                    // After we receive the Report in full, it successfully parses.
+                    assert!(res.is_some_and(|(parsed_report, _)| parsed_report == *report));
+                }
+            }
         }
     }
 
