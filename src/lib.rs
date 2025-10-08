@@ -162,7 +162,6 @@ pub enum Report {
     DialValue { diff: i8 },
     Press,
     Release,
-    EmergencyOff,
     Error { code: u16 },
 }
 
@@ -181,7 +180,6 @@ impl Report {
             },
             [b'P', ..] => Ok(Some((Report::Press, 1))),
             [b'R', ..] => Ok(Some((Report::Release, 1))),
-            [b'X', ..] => Ok(Some((Report::EmergencyOff, 1))),
             [b'E', msb, lsb, ..] => {
                 let code = u16::from_be_bytes([msb, lsb]);
                 Ok(Some((Report::Error { code }, 3)))
@@ -207,9 +205,6 @@ impl Report {
             },
             Report::Release => {
                 buf.push(b'R');
-            },
-            Report::EmergencyOff => {
-                buf.push(b'X');
             },
             Report::Error { code } => {
                 buf.push(b'E');
@@ -340,7 +335,6 @@ mod tests {
             Report::Press,
             Report::Release,
             Report::DialValue { diff: 100 },
-            Report::EmergencyOff,
             Report::Error { code: 80 },
         ];
 
@@ -360,7 +354,6 @@ mod tests {
             Report::Press,
             Report::Release,
             Report::DialValue { diff: 100 },
-            Report::EmergencyOff,
             Report::Error { code: 80 },
         ];
 
