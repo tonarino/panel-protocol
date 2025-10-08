@@ -10,10 +10,13 @@ default = []
 std = []
 # This feature implements serde::{Serialize, Deserialize} for Command and Report structs.
 serde_support = ["serde", "std"]
+# This feature implements defmt::Format for Command, Report and other structs exposed by this crate.
+defmt = ["dep:defmt"]
 
 [dependencies]
 arrayvec = { version = "0.7", default-features = false }
 serde = { version = "1.0", optional = true }
+defmt = { version = "1.0", optional = true }
 
 [[example]]
 name = "cli"
