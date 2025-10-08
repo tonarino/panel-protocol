@@ -162,7 +162,6 @@ pub enum Report {
     DialValue { diff: i8 },
     Press,
     Release,
-    Error { code: u16 },
 }
 
 impl Report {
@@ -178,13 +177,10 @@ impl Report {
                 let diff = i8::from_be_bytes([diff]);
                 Ok(Some((Report::DialValue { diff }, 2)))
             },
+            [b'V'] => Ok(None),
             [b'P', ..] => Ok(Some((Report::Press, 1))),
             [b'R', ..] => Ok(Some((Report::Release, 1))),
-            [b'E', msb, lsb, ..] => {
-                let code = u16::from_be_bytes([msb, lsb]);
-                Ok(Some((Report::Error { code }, 3)))
-            },
-            [header, ..] if b"VE".contains(&header) => Ok(None),
+
             _ => Err(Error::MalformedMessage),
         }
     }
@@ -205,10 +201,6 @@ impl Report {
             },
             Report::Release => {
                 buf.push(b'R');
-            },
-            Report::Error { code } => {
-                buf.push(b'E');
-                buf.try_extend_from_slice(&code.to_be_bytes()).unwrap();
             },
         }
         buf
@@ -331,12 +323,7 @@ mod tests {
 
     #[test]
     fn report_roundtrips_arrayvec() {
-        let reports = [
-            Report::Press,
-            Report::Release,
-            Report::DialValue { diff: 100 },
-            Report::Error { code: 80 },
-        ];
+        let reports = [Report::Press, Report::Release, Report::DialValue { diff: 100 }];
 
         for report in reports.iter() {
             let (deserialized, _len) =
@@ -349,13 +336,8 @@ mod tests {
     fn report_protocol_parse() {
         const REPORT_QUEUE_SIZE: usize = 6;
 
-        let reports = [
-            Report::Heartbeat,
-            Report::Press,
-            Report::Release,
-            Report::DialValue { diff: 100 },
-            Report::Error { code: 80 },
-        ];
+        let reports =
+            [Report::Heartbeat, Report::Press, Report::Release, Report::DialValue { diff: 100 }];
 
         let mut protocol = ReportReader::new();
         for report_chunk in reports.chunks(REPORT_QUEUE_SIZE) {
