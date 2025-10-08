@@ -9,6 +9,7 @@ pub use arrayvec::ArrayVec;
 
 #[derive(Debug, PartialEq)]
 #[cfg_attr(feature = "serde_support", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Command {
     Brightness { target: u8, value: u16 },
     Temperature { target: u8, value: u16 },
@@ -19,6 +20,7 @@ pub enum Command {
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 #[cfg_attr(feature = "serde_support", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum PulseMode {
     Solid,
     Breathing { interval_ms: NonZeroU16 },
@@ -57,6 +59,7 @@ impl TryFrom<[u8; 3]> for PulseMode {
     }
 }
 #[derive(Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Error {
     BufferFull,
     MalformedMessage,
@@ -148,6 +151,7 @@ impl Command {
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, PartialEq)]
 #[cfg_attr(feature = "serde_support", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Report {
     DialValue { diff: i8 },
     Press,
