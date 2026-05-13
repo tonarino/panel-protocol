@@ -3,7 +3,7 @@ name = "panel-protocol"
 version = "0.7.0"
 authors = ["Jake McGinty <me@jake.su>", "Brian Schwind <brianmschwind@gmail.com>"]
 license = "MIT"
-edition = "2021"
+edition = "2024"
 
 [features]
 default = []

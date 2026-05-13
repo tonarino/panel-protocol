@@ -1,5 +1,5 @@
-use anyhow::{format_err, Error, Result};
-use panel_protocol::{ArrayVec, Command, Report, ReportReader, MAX_REPORT_LEN};
+use anyhow::{Error, Result, format_err};
+use panel_protocol::{ArrayVec, Command, MAX_REPORT_LEN, Report, ReportReader};
 use serial_core::{BaudRate, SerialDevice, SerialPortSettings};
 use serial_unix::TTYPort;
 use std::{
