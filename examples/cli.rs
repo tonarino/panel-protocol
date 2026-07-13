@@ -131,9 +131,9 @@ fn main() {
 
         match ron::de::from_str(&line) {
             Ok(command) => match panel.lock().unwrap().send(&command) {
-                Ok(_) => println!("Sent command: {:?}", &command),
+                Ok(_) => println!("Sent command: {:?}", command),
                 Err(e) => {
-                    println!("Failed to send command {:?}: {}", &command, e);
+                    println!("Failed to send command {:?}: {}", command, e);
                     return;
                 },
             },

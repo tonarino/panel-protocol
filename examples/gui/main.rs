@@ -39,7 +39,7 @@ fn main() -> Result<()> {
             match panel.poll() {
                 Ok(reports) => {
                     for report in reports {
-                        println!("New serial message: {:?}", &report);
+                        println!("New serial message: {:?}", report);
                         report_tx.send(report).unwrap();
                     }
                 },
