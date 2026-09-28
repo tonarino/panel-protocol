@@ -1,7 +1,7 @@
 use core::num::NonZeroU16;
 /// A cli tool to connect to a device that talks the protocol.
-use failure::{err_msg, format_err, Error};
-use panel_protocol::{ArrayVec, Command, PulseMode, Report, ReportReader, MAX_REPORT_LEN};
+use failure::{Error, err_msg, format_err};
+use panel_protocol::{ArrayVec, Command, MAX_REPORT_LEN, PulseMode, Report, ReportReader};
 use serial_core::{BaudRate, SerialDevice, SerialPortSettings};
 use serial_unix::TTYPort;
 use std::{
@@ -9,8 +9,8 @@ use std::{
     io::{Read, Write},
     path::PathBuf,
     sync::{
-        atomic::{AtomicBool, Ordering},
         Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
     },
     thread,
     time::Duration,

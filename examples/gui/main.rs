@@ -3,8 +3,8 @@ use eframe::run_native;
 use std::{
     env,
     sync::{
-        atomic::{AtomicBool, Ordering},
         Arc,
+        atomic::{AtomicBool, Ordering},
     },
     thread,
     time::Duration,

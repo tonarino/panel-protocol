@@ -1,7 +1,7 @@
 use std::{
     collections::VecDeque,
     num::NonZeroU16,
-    sync::mpsc::{channel, Receiver, Sender},
+    sync::mpsc::{Receiver, Sender, channel},
     time::Duration,
 };
 
@@ -182,16 +182,18 @@ impl epi::App for App {
         std::mem::swap(&mut self.report_rx, &mut report_rx);
         self.kill_updater = Some(kill_updater_tx);
         let repaint_signal = _frame.repaint_signal().clone();
-        std::thread::spawn(move || loop {
-            if kill_updater_rx.try_recv().is_ok() {
-                println!("Killed updater thread.");
-                break;
+        std::thread::spawn(move || {
+            loop {
+                if kill_updater_rx.try_recv().is_ok() {
+                    println!("Killed updater thread.");
+                    break;
+                }
+                while let Ok(report) = report_rx.try_recv() {
+                    report_tx.send(report).unwrap();
+                    repaint_signal.request_repaint();
+                }
+                std::thread::sleep(Duration::from_millis(1));
             }
-            while let Ok(report) = report_rx.try_recv() {
-                report_tx.send(report).unwrap();
-                repaint_signal.request_repaint();
-            }
-            std::thread::sleep(Duration::from_millis(1));
         });
 
         // Update the led on startup
